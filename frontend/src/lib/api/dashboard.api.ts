@@ -142,17 +142,44 @@ export const dashboardApi = {
       const resp = await apiClient.get(`/api/v1/panel/evaluation/${evaluationId}`);
       const body = resp.data?.data ?? resp.data ?? {};
 
-      // Transform backend response to match evaluation store format
+      // Map backend category/evidence label keys → camelCase frontend keys
+      const LABEL_TO_CAMEL: Record<string, string> = {
+        'Mandatory Skill Coverage':    'mandatorySkillCoverage',
+        'Technical Depth':             'technicalDepth',
+        'Scenario / Risk Evaluation':  'scenarioRiskEvaluation',
+        'Framework Knowledge':         'frameworkKnowledge',
+        'Hands-on Validation':         'handsOnValidation',
+        'Leadership Evaluation':       'leadershipEvaluation',
+        'Behavioral Assessment':       'behavioralAssessment',
+        'Interview Structure':         'interviewStructure',
+      };
+
+      const rawCategories = body.categories ?? {};
+      const mappedCategories: Record<string, number> = {};
+      for (const [k, v] of Object.entries(rawCategories)) {
+        mappedCategories[LABEL_TO_CAMEL[k] ?? k] = Number(v);
+      }
+
+      const rawEvidence = body.evidence;
+      const mappedEvidence: Record<string, string[]> = {};
+      if (rawEvidence && !Array.isArray(rawEvidence) && typeof rawEvidence === 'object') {
+        for (const [k, v] of Object.entries(rawEvidence)) {
+          const key = LABEL_TO_CAMEL[k] ?? k;
+          if (Array.isArray(v)) mappedEvidence[key] = (v as any[]).map(String);
+        }
+      }
+
       return {
         jobId: body.jobId,
         panelName: body.panelName,
         candidateName: body.candidateName,
         score: body.score ?? 0,
         confidence: body.confidence,
-        categories: body.categories,
-        evidence: body.evidence,
+        categories: mappedCategories,
+        evidence: mappedEvidence,
         l2Validation: body.l2Validation,
         l2RejectionReasons: body.l2RejectionReasons ?? [],
+        l1Transcript: body.l1Transcript || '',
         evaluatedAt: body.evaluatedAt,
         scoreCategory: (body.score ?? 0) >= 8 ? 'Good' : (body.score ?? 0) >= 5 ? 'Moderate' : 'Poor'
       };

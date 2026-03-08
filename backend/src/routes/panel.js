@@ -578,16 +578,19 @@ router.get('/evaluation/:id', async (req, res) => {
     const db = await getDb();
     const evalCollection = db.collection('panel_evaluations');
 
-    // Validate ObjectID format
-    if (!ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid evaluation ID format',
-        timestamp: new Date().toISOString()
-      });
+    // Try ObjectId lookup first; fallback to Job Interview ID string match
+    let evaluation = null;
+    if (ObjectId.isValid(req.params.id)) {
+      evaluation = await evalCollection.findOne({ _id: new ObjectId(req.params.id) });
     }
-
-    const evaluation = await evalCollection.findOne({ _id: new ObjectId(req.params.id) });
+    // Fallback: search by Job Interview ID (most recent match)
+    if (!evaluation) {
+      evaluation = await evalCollection
+        .find({ 'Job Interview ID': req.params.id })
+        .sort({ created_at: -1 })
+        .limit(1)
+        .next();
+    }
 
     if (!evaluation) {
       return res.status(404).json({
@@ -609,6 +612,7 @@ router.get('/evaluation/:id', async (req, res) => {
         evidence: evaluation.evidence,
         l2Validation: evaluation.l2_validation,
         l2RejectionReasons: evaluation.l2_rejection_reasons || [],
+        l1Transcript: evaluation.l1_transcript || '',
         evaluatedAt: evaluation.evaluated_at
       },
       timestamp: new Date().toISOString()

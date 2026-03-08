@@ -13,7 +13,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 export default function ResultsPage() {
   const navigate = useNavigate();
-  const { id: evaluationId } = useParams<{ id: string }>();
+  const { evaluationId } = useParams<{ evaluationId: string }>();
   const [cachedEvaluation, setCachedEvaluation] = useState<any>(null);
   const [loadingCached, setLoadingCached] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);

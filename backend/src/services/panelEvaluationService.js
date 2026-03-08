@@ -74,7 +74,8 @@ async function performPanelEvaluation(input) {
       confidence: evaluation.confidence,
       evidence: evaluation.evidence,
       l2_validation: evaluation.l2_validation,
-      l2_rejection_reasons
+      l2_rejection_reasons,
+      l1_transcript: l1_transcripts.join('\n\n')
     });
 
     return {
@@ -432,8 +433,9 @@ function _validatePanelStructure(obj) {
     throw new Error('Invalid categories object');
   }
 
-  if (!obj.evidence || !Array.isArray(obj.evidence)) {
-    obj.evidence = [];
+  // Accept both array (legacy) and object (per-dimension) evidence formats
+  if (!obj.evidence || (typeof obj.evidence !== 'object')) {
+    obj.evidence = {};
   }
 
   if (!['NO_PROBING', 'SURFACE_PROBING', 'DEEP_PROBING'].includes(obj.probing_verdict)) {
@@ -465,6 +467,7 @@ async function _storeEvaluationInDB(evaluationData) {
       evidence: evaluationData.evidence,
       l2_validation: evaluationData.l2_validation,
       l2_rejection_reasons: evaluationData.l2_rejection_reasons || [],
+      l1_transcript: evaluationData.l1_transcript || '',
       evaluated_at: new Date().toISOString(),
       created_at: new Date()
     };
