@@ -1,0 +1,181 @@
+import apiClient from './client';
+import type { DashboardStats, SearchResponse } from '@/types/dashboard.types';
+import { sanitizeText } from '@/lib/utils/sanitize';
+
+export interface PanelEfficiency {
+  panelName: string;
+  averageScore: number;
+  evaluationCount: number;
+  maxScore: number;
+  minScore: number;
+  scoreRange: string;
+}
+
+export interface PanelEfficiencyResponse {
+  panels: PanelEfficiency[];
+  totalPanels: number;
+  overallAverage: number;
+  totalEvaluations: number;
+}
+
+export const dashboardApi = {
+  async fetchStats(): Promise<DashboardStats> {
+    // Check if we should use real data (VITE_USE_MOCK_DASHBOARD should be explicitly 'false' to use real data)
+    // Only use mock data if explicitly enabled as 'true'
+    const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DASHBOARD === 'true';
+    
+    if (USE_MOCK_DATA) {
+      // Return mock data immediately for development
+      return getMockDashboardStats();
+    }
+
+    // Try common endpoint names; backend may expose different route
+    const endpoints = ['/api/v1/panel/stats', '/api/v1/panel/dashboard', '/api/v1/panel/summary'];
+
+    let lastErr: any = null;
+    for (const ep of endpoints) {
+      try {
+        const resp = await apiClient.get(ep);
+        // Unwrap the nested data object from backend response
+        const body = resp.data?.data ?? resp.data ?? {};
+
+        // Normalize response into DashboardStats
+        const stats: DashboardStats = {
+          totalEvaluations: Number((body.totalEvaluations ?? body.total_evaluations ?? body.total) || 0),
+          averageScore: Number(body.averageScore ?? body.average_score ?? body.avg_score ?? 0),
+          lastEvaluationDate: String((body.lastEvaluationDate ?? body.last_evaluation_date ?? body.last) || ''),
+          evaluationsThisWeek: Number(body.evaluationsThisWeek ?? body.evaluations_this_week ?? 0),
+          scoreDistribution: Array.isArray(body.scoreDistribution ?? body.score_distribution)
+            ? (body.scoreDistribution ?? body.score_distribution).map((r: any) => ({ range: String(r.range ?? r.label), count: Number(r.count ?? r.value ?? 0) }))
+            : [],
+          dimensionTrends: Array.isArray(body.dimensionTrends ?? body.dimension_trends)
+            ? (body.dimensionTrends ?? body.dimension_trends).map((p: any) => ({ date: String(p.date), dimension: String(p.dimension), score: Number(p.score) }))
+            : [],
+          recentEvaluations: Array.isArray(body.recentEvaluations ?? body.recent_evaluations) ? body.recentEvaluations ?? body.recent_evaluations : [],
+        };
+
+        // sanitize textual fields
+        stats.lastEvaluationDate = sanitizeText(stats.lastEvaluationDate);
+
+        return stats;
+      } catch (err: any) {
+        lastErr = err;
+        // try next endpoint
+      }
+    }
+
+    // All endpoints failed, use mock data
+    return getMockDashboardStats();
+  },
+
+  async fetchPanelEfficiency(): Promise<PanelEfficiencyResponse> {
+    try {
+      const resp = await apiClient.get('/api/v1/panel/efficiency');
+      const body = resp.data?.data ?? resp.data ?? {};
+
+      return {
+        panels: body.panels ?? [],
+        totalPanels: body.totalPanels ?? 0,
+        overallAverage: body.overallAverage ?? 0,
+        totalEvaluations: body.totalEvaluations ?? 0
+      };
+    } catch (error) {
+      console.error('Failed to fetch panel efficiency:', error);
+      return {
+        panels: [],
+        totalPanels: 0,
+        overallAverage: 0,
+        totalEvaluations: 0
+      };
+    }
+  },
+
+  async searchEvaluations(
+    jobInterviewId?: string,
+    panelName?: string,
+    candidateName?: string,
+    limit: number = 50,
+    skip: number = 0
+  ): Promise<SearchResponse> {
+    try {
+      const params = new URLSearchParams();
+      if (jobInterviewId) params.append('job_interview_id', jobInterviewId);
+      if (panelName) params.append('panel_name', panelName);
+      if (candidateName) params.append('candidate_name', candidateName);
+      params.append('limit', String(limit));
+      params.append('skip', String(skip));
+
+      const resp = await apiClient.get(`/api/v1/panel/search?${params.toString()}`);
+      const body = resp.data?.data ?? resp.data ?? {};
+
+      return {
+        evaluations: body.evaluations ?? [],
+        totalEvaluations: body.totalEvaluations ?? 0,
+        averageScore: body.averageScore ?? 0,
+        scoreDistribution: body.scoreDistribution ?? [],
+        pagination: body.pagination ?? {
+          total: 0,
+          limit,
+          skip,
+          pages: 0
+        }
+      };
+    } catch (error) {
+      console.error('Search failed:', error);
+      return {
+        evaluations: [],
+        totalEvaluations: 0,
+        averageScore: 0,
+        scoreDistribution: [],
+        pagination: {
+          total: 0,
+          limit,
+          skip,
+          pages: 0
+        }
+      };
+    }
+  },
+
+  async fetchCachedEvaluation(evaluationId: string): Promise<any> {
+    try {
+      const resp = await apiClient.get(`/api/v1/panel/evaluation/${evaluationId}`);
+      const body = resp.data?.data ?? resp.data ?? {};
+
+      // Transform backend response to match evaluation store format
+      return {
+        jobId: body.jobId,
+        panelName: body.panelName,
+        candidateName: body.candidateName,
+        score: body.score,
+        confidence: body.confidence,
+        categories: body.categories,
+        evidence: body.evidence,
+        l2Validation: body.l2Validation,
+        evaluatedAt: body.evaluatedAt,
+        scoreCategory: body.score >= 8 ? 'Good' : body.score >= 5 ? 'Moderate' : 'Poor'
+      };
+    } catch (error) {
+      console.error('Failed to fetch cached evaluation:', error);
+      throw error;
+    }
+  }
+};
+
+function getMockDashboardStats(): DashboardStats {
+  return {
+      totalEvaluations: 7,
+      averageScore: 5.6,
+      lastEvaluationDate: new Date().toISOString().split('T')[0],
+      evaluationsThisWeek: 0,
+      scoreDistribution: [
+        { range: '0-5', count: 3 },
+        { range: '5-8', count: 5 },
+        { range: '8-10', count: 0 },
+      ],
+      dimensionTrends: [],
+      recentEvaluations: [],
+    };
+}
+
+export default dashboardApi;
