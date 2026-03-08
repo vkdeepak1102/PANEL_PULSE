@@ -17,28 +17,25 @@ const PORT = process.env.API_PORT || process.env.PORT || 3000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Simple CORS middleware to allow requests from the frontend
+// CORS middleware
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const allowedOrigins = [
-    FRONTEND_URL,
+    'https://panel-pulse.vercel.app',  // Production frontend
+    FRONTEND_URL,                        // From env variable
     process.env.ALLOWED_ORIGIN,
     'http://localhost:5173',
     'http://localhost:3000'
   ].filter(Boolean);
-  
-  // Allow any origin that matches or if no origin specified (like curl requests)
-  if (!origin || allowedOrigins.includes(origin)) {
+
+  // Allow matching origins, *.vercel.app previews, or no-origin requests (curl etc.)
+  const isVercelPreview = origin && origin.endsWith('.vercel.app');
+  if (!origin || allowedOrigins.includes(origin) || isVercelPreview) {
     res.setHeader('Access-Control-Allow-Origin', origin || '*');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  // Echo requested headers if present, otherwise allow common and custom headers
   const requestedHeaders = req.header('access-control-request-headers');
-  const defaultAllowed = 'Content-Type, Authorization, X-Request-ID, X-Requested-With';
-  res.setHeader('Access-Control-Allow-Headers', requestedHeaders || defaultAllowed);
-  // Optional: allow credentials when needed (disabled by default)
-  // res.setHeader('Access-Control-Allow-Credentials', 'true');
-  // Respond to preflight requests
+  res.setHeader('Access-Control-Allow-Headers', requestedHeaders || 'Content-Type, Authorization, X-Request-ID, X-Requested-With');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
