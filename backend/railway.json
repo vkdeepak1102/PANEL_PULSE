@@ -1,0 +1,12 @@
+{
+  "builder": "nixpacks",
+  "build": {
+    "cmd": "npm install"
+  },
+  "start": {
+    "cmd": "npm start"
+  },
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
