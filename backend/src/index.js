@@ -6,6 +6,7 @@ const embeddingsRoutes = require('./routes/embeddings');
 const searchRoutes = require('./routes/search');
 const jdRoutes = require('./routes/jd');
 const panelRoutes = require('./routes/panel');
+const chatRoutes = require('./routes/chat');
 const { connectToMongo } = require('./services/mongoClient');
 
 const app = express();
@@ -45,6 +46,7 @@ app.use('/api/v1/embeddings', embeddingsRoutes);
 app.use('/api/v1/search', searchRoutes);
 app.use('/api/v1/jd', jdRoutes);
 app.use('/api/v1/panel', panelRoutes);
+app.use('/api/v1/chat', chatRoutes);
 
 const port = PORT;
 

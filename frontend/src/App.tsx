@@ -4,7 +4,7 @@ import './App.css';
 import DashboardPage from './pages/DashboardPage';
 import EvaluatePage from './pages/EvaluatePage';
 import ResultsPage from './pages/ResultsPage';
-import HistoryPage from './pages/HistoryPage';
+import ChatPage from './pages/ChatPage';
 
 function App() {
   return (
@@ -25,7 +25,7 @@ function App() {
         <Route path="/evaluate" element={<EvaluatePage />} />
         <Route path="/results" element={<ResultsPage />} />
         <Route path="/results/:evaluationId" element={<ResultsPage />} />
-        <Route path="/history" element={<HistoryPage />} />
+        <Route path="/chat" element={<ChatPage />} />
       </Routes>
     </BrowserRouter>
   );

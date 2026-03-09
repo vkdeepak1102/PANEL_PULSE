@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BarChart3, Upload, History, Check } from 'lucide-react';
+import { BarChart3, Upload, MessageSquare, Check } from 'lucide-react';
 
 interface NavItem {
   id: string;
@@ -25,11 +25,11 @@ const navItems: NavItem[] = [
     description: 'Upload & score',
   },
   {
-    id: 'history',
-    icon: <History className="w-5 h-5" />,
-    label: 'History',
-    path: '/history',
-    description: 'Past evaluations',
+    id: 'chat',
+    icon: <MessageSquare className="w-5 h-5" />,
+    label: 'Chat',
+    path: '/chat',
+    description: 'Ask the AI',
   },
 ];
 
