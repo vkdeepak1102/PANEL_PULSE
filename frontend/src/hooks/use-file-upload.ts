@@ -6,6 +6,58 @@ import { panelApi } from '@/lib/api/panel.api';
 import type { UploadRequest } from '@/types/upload.types';
 import toast from 'react-hot-toast';
 
+/**
+ * Parse a CSV/text file and extract the content for a specific job ID.
+ * Expects the first column to be the Job Interview ID and the second column
+ * to be the actual content (JD text or L2 rejection reason).
+ * Handles optional header row, quoted fields, and comma-containing content.
+ * Returns null when:
+ *   - The content is not a multi-row CSV (single entry — use as-is)
+ *   - No row matches the given jobId
+ */
+function extractCsvRowForJobId(rawContent: string, jobId: string): string | null {
+  if (!rawContent || !jobId) return null;
+
+  const lines = rawContent
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  // Need at least 2 lines to be a multi-row CSV worth filtering
+  if (lines.length < 2) return null;
+
+  // Detect and skip a header row (first line contains 'job' or 'id' with a comma)
+  const firstLineLower = lines[0].toLowerCase();
+  const looksLikeHeader =
+    firstLineLower.includes(',') &&
+    (firstLineLower.includes('job') || firstLineLower.includes(' id') || firstLineLower.startsWith('id'));
+
+  const dataLines = looksLikeHeader ? lines.slice(1) : lines;
+  const normalizedJobId = jobId.trim().toLowerCase();
+
+  for (const line of dataLines) {
+    // Split on first comma only — content may contain commas
+    const commaIdx = line.indexOf(',');
+    if (commaIdx === -1) continue;
+
+    const rowJobId = line
+      .substring(0, commaIdx)
+      .trim()
+      .replace(/^"|"$/g, '') // strip surrounding quotes
+      .toLowerCase();
+
+    if (rowJobId === normalizedJobId) {
+      const content = line
+        .substring(commaIdx + 1)
+        .trim()
+        .replace(/^"|"$/g, '');
+      return content.length > 0 ? content : null;
+    }
+  }
+
+  return null; // jobId not found in this CSV
+}
+
 export function useFileUpload() {
   const { addFile, removeFile, setProgress, setStatus, setMessage, clear, files, setL1Transcript: setUploadL1Transcript } = useUploadStore();
   const { setEvaluation, setLoading, setL1Transcript, setL2RejectionReason } = useEvaluationStore();
@@ -89,9 +141,19 @@ export function useFileUpload() {
     setProgress(10);
 
     try {
-      const jd = files.get('jd')?.content ?? '';
+      // Read raw file contents
+      let jd = files.get('jd')?.content ?? '';
       const l1 = files.get('l1')?.content ?? '';
-      const l2 = files.get('l2')?.content ?? '';
+      let l2 = files.get('l2')?.content ?? '';
+
+      // If the JD or L2 file is a multi-row CSV (one row per job ID),
+      // extract only the row for the current jobId so the backend receives
+      // data relevant to this interview only.
+      const jdForJob = extractCsvRowForJobId(jd, jobId.trim());
+      if (jdForJob !== null) jd = jdForJob;
+
+      const l2ForJob = extractCsvRowForJobId(l2, jobId.trim());
+      if (l2ForJob !== null) l2 = l2ForJob;
 
       const request: UploadRequest = {
         jobId: jobId.trim(),

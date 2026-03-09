@@ -7,17 +7,39 @@ interface Props {
   l1Transcript: string;
   l2RejectionReason?: string;
   autoValidate?: boolean;
+  jobId?: string;
 }
 
-/** Strip CSV header rows and return a clean rejection reason string */
-function cleanRejectionReason(raw: string): string {
+/** Strip CSV header rows / ID prefixes and return only the clean rejection reason for the given jobId */
+function cleanRejectionReason(raw: string, jobId?: string): string {
   if (!raw) return '';
+
   const lines = raw
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
 
-  // Drop header-like rows e.g. "Job Interview ID,L2 Rejected Reason"
+  // If jobId is provided and the stored content looks like a multi-row CSV,
+  // extract only the row matching this jobId.
+  if (jobId && lines.length > 1) {
+    const firstLineLower = lines[0].toLowerCase();
+    const looksLikeHeader =
+      firstLineLower.includes(',') &&
+      (firstLineLower.includes('job') || firstLineLower.includes(' id') || firstLineLower.startsWith('id'));
+    const dataLines = looksLikeHeader ? lines.slice(1) : lines;
+    const normalizedJobId = jobId.trim().toLowerCase();
+
+    for (const line of dataLines) {
+      const commaIdx = line.indexOf(',');
+      if (commaIdx === -1) continue;
+      const rowJobId = line.substring(0, commaIdx).trim().replace(/^"|"$/g, '').toLowerCase();
+      if (rowJobId === normalizedJobId) {
+        return line.substring(commaIdx + 1).trim().replace(/^"|"$/g, '');
+      }
+    }
+  }
+
+  // Fallback: strip any header-like rows then clean ID prefixes
   const headerPatterns = [
     /^job.{0,5}interview.{0,5}id/i,
     /^l2.{0,5}rejected?.{0,5}reason/i,
@@ -31,7 +53,6 @@ function cleanRejectionReason(raw: string): string {
   // take everything after the first comma
   if (contentLines.length > 0) {
     const first = contentLines[0];
-    // Heuristic: if line contains a comma and first segment has no spaces → ID,reason
     const commaIdx = first.indexOf(',');
     if (commaIdx > 0 && !first.substring(0, commaIdx).includes(' ')) {
       contentLines[0] = first.substring(commaIdx + 1).trim();
@@ -45,10 +66,11 @@ export function L2ValidatorCard({
   l1Transcript,
   l2RejectionReason = '',
   autoValidate = false,
+  jobId,
 }: Props) {
   const { result, isLoading, error, validateL2Reason } = useL2Validation();
 
-  const cleanedReason = cleanRejectionReason(l2RejectionReason);
+  const cleanedReason = cleanRejectionReason(l2RejectionReason, jobId);
 
   // Auto-validate once when both reason and transcript are available
   useEffect(() => {

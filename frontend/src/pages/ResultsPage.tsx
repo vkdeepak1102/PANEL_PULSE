@@ -168,6 +168,7 @@ export default function ResultsPage() {
                 l1Transcript={displayL1}
                 l2RejectionReason={displayL2Reasons[0]}
                 autoValidate={true}
+                jobId={displayJobId}
               />
             </section>
           )}
