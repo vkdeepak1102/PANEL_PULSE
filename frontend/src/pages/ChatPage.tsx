@@ -237,11 +237,29 @@ function SourcesAccordion({ sources }: { sources: ChatSource[] }) {
           {filtered.map((src, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 bg-slate-700/50 border border-slate-600/40 text-slate-400 rounded-lg px-2 py-1"
+              className="inline-flex items-center gap-1.5 bg-slate-700/50 border border-slate-600/40 text-slate-400 rounded-lg px-2 py-1"
             >
-              {src.panel_member_name || src.candidate_name || src.job_interview_id}
-              {src.field_type && (
-                <span className="text-slate-500">· {src.field_type}</span>
+              {src.panel_member_name && (
+                <span className="text-slate-300 font-medium">{src.panel_member_name}</span>
+              )}
+              {src.candidate_name && (
+                <span className="text-slate-500">· {src.candidate_name}</span>
+              )}
+              {!src.panel_member_name && !src.candidate_name && src.job_interview_id && (
+                <span>{src.job_interview_id}</span>
+              )}
+              {src.score !== null && src.score !== undefined && (
+                <span
+                  className={`ml-1 font-semibold ${
+                    src.score >= 8
+                      ? 'text-emerald-400'
+                      : src.score >= 5
+                      ? 'text-amber-400'
+                      : 'text-red-400'
+                  }`}
+                >
+                  {src.score}/10
+                </span>
               )}
             </span>
           ))}

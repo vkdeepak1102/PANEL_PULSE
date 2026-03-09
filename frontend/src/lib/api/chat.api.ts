@@ -15,8 +15,9 @@ export interface ChatSource {
   job_interview_id: string | null;
   candidate_name: string | null;
   panel_member_name: string | null;
-  field_type: string | null;
-  relevance: number | null;
+  score: number | null;
+  confidence: string | null;
+  evaluated_at: string | null;
 }
 
 export interface ChatResponse {

@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { searchHybrid, searchBM25 } = require('../services/searchService');
-const { searchVector } = require('../services/vectorSearchService');
+const { getDb } = require('../services/mongoClient');
 const https = require('https');
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
@@ -16,29 +15,33 @@ Your role is to help the HR TAG (Talent Acquisition Group) team by:
 - Summarizing evaluation trends across panels and candidates
 - Providing actionable insights from panel interview data
 
-You have access to real panel evaluation data from the PanelPulse database retrieved via hybrid search (BM25 + vector semantic search).
+You have access to STRUCTURED panel evaluation records fetched directly from the PanelPulse database. Each record contains the full evaluation result including overall score, per-dimension scores, evidence points, panel summary, and L2 validation details.
 
 RESPONSE GUIDELINES:
 - Be concise but thorough. Use bullet points for lists, bold for key names/numbers.
-- When recommending panels, cite their actual scores and dimension strengths from the context.
+- When recommending panels, cite their actual overall score AND relevant dimension scores from the context.
+- When comparing panels, list each panel's name, overall score, and top/weak dimensions.
 - When data is not available in the context, say so clearly rather than hallucinating.
-- Format scores as X.X/10. Mention relevant dimensions when comparing panels.
+- Format scores as X.X/10. For dimension scores, show achieved/max (e.g., 2.1/2.5).
 - Keep a professional but approachable tone suited for HR/recruitment teams.
 - If the user asks a follow-up, use the conversation history to maintain context.
-- Always prioritize data from the "PANEL DATA CONTEXT" section over general knowledge.
+- Always prioritize data from the "PANEL EVALUATION DATA" section over general knowledge.
+- Use the Panel Summary field to give descriptive answers about evaluation quality.
+- Use Evidence points to support specific claims about what was or wasn't covered.
 
 PANEL SCORING DIMENSIONS (max scores):
-- Mandatory Skill Coverage: 2.5
-- Technical Depth: 2.5
-- Scenario/Risk Evaluation: 1.0
-- Framework Knowledge: 1.0
-- Hands-on Validation: 1.0
-- Leadership Evaluation: 0.75
-- Behavioral Assessment: 0.75
-- Interview Structure: 0.5
+- Mandatory Skill Coverage: 2.5  (highest weight — covers essential technical skills)
+- Technical Depth: 2.5           (probing depth on core domain knowledge)
+- Scenario/Risk Evaluation: 1.0  (situational and risk-based questions)
+- Framework Knowledge: 1.0       (tools, frameworks, methodologies)
+- Hands-on Validation: 1.0       (practical coding/design exercises)
+- Leadership Evaluation: 0.75    (leadership and ownership signals)
+- Behavioral Assessment: 0.75    (STAR-based behavioural questions)
+- Interview Structure: 0.5       (flow, pacing, closure)
 Total max score: 10.0
 
-Score interpretation: 0-4.9 = Poor, 5-7.9 = Moderate, 8-10 = Good`;
+Score interpretation: 0–4.9 = Poor, 5.0–7.9 = Moderate, 8.0–10.0 = Good
+Confidence levels: High / Medium / Low (reflects how certain the AI is about the score)`;
 
 /**
  * Call GROQ API for chat completion
@@ -93,30 +96,139 @@ async function callGroqChat(messages) {
 }
 
 /**
- * Format search results into LLM-readable context
+ * Search panel_evaluations collection directly using keyword regex.
+ * Falls back to most-recent evaluations if no keyword match is found.
+ *
+ * @param {string} query     - User's chat message / search terms
+ * @param {object} options
+ * @param {number} options.limit       - Max docs to return (default 10)
+ * @param {boolean} options.strictMode - If true, skip l1_transcript scan (faster)
  */
-function formatContextFromResults(results) {
-  if (!results || results.length === 0) {
-    return 'No relevant panel evaluation data found for this query.';
-  }
+async function searchPanelEvaluations(query, options = {}) {
+  const { limit = 10, strictMode = false } = options;
 
-  return results.slice(0, 8).map((doc, i) => {
-    const lines = [
-      `--- Record ${i + 1} ---`,
-      doc.job_interview_id ? `Job Interview ID: ${doc.job_interview_id}` : null,
-      doc.candidate_name ? `Candidate: ${doc.candidate_name}` : null,
-      doc.panel_member_name ? `Panel Member: ${doc.panel_member_name}` : null,
-      doc.field_type ? `Field Type: ${doc.field_type}` : null,
+  const db = await getDb();
+  const collection = db.collection('panel_evaluations');
+
+  // ── keyword extraction ──────────────────────────────────────────────────
+  const stopWords = new Set([
+    'the', 'and', 'for', 'with', 'about', 'what', 'how', 'are', 'was',
+    'were', 'has', 'have', 'did', 'does', 'can', 'could', 'would', 'should',
+    'all', 'any', 'who', 'which', 'that', 'this', 'they', 'their', 'from',
+    'show', 'tell', 'give', 'list', 'get', 'find', 'best', 'top', 'good',
+    'bad', 'high', 'low', 'score', 'scores', 'panel', 'panels', 'candidate',
+    'candidates', 'evaluation', 'evaluations', 'interview', 'interviews',
+  ]);
+
+  const keywords = query
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stopWords.has(w));
+
+  let results = [];
+
+  if (keywords.length > 0) {
+    const regexPattern = keywords.join('|');
+    const anyKeyword = new RegExp(regexPattern, 'i');
+
+    const orClauses = [
+      { 'Job Interview ID': anyKeyword },
+      { 'Panel Name': anyKeyword },
+      { 'Candidate Name': anyKeyword },
+      { panel_summary: anyKeyword },
     ];
 
-    if (doc.score !== undefined) {
-      lines.push(`Relevance Score: ${doc.score}`);
+    // Include transcript scan only in non-strict (hybrid/vector) modes
+    if (!strictMode) {
+      orClauses.push({ l1_transcript: anyKeyword });
     }
-    if (doc.hybrid_score !== undefined) {
-      lines.push(`Hybrid Score: ${doc.hybrid_score}`);
+
+    results = await collection
+      .find({ $or: orClauses })
+      .sort({ score: -1, evaluated_at: -1 })
+      .limit(limit)
+      .toArray();
+
+    console.log(`[Chat] panel_evaluations keyword search → ${results.length} results for keywords: [${keywords.join(', ')}]`);
+  }
+
+  // ── fallback: return recent evaluations as general context ───────────────
+  if (results.length === 0) {
+    results = await collection
+      .find({})
+      .sort({ evaluated_at: -1, score: -1 })
+      .limit(limit)
+      .toArray();
+    console.log(`[Chat] panel_evaluations fallback (no keyword match) → ${results.length} recent records`);
+  }
+
+  return results;
+}
+
+/**
+ * Format panel_evaluations documents into rich, structured LLM-readable context.
+ * Each record includes score, dimension breakdown, evidence, panel summary, L2 data.
+ */
+function formatContextFromEvaluations(docs) {
+  if (!docs || docs.length === 0) {
+    return 'No panel evaluation records found for this query.';
+  }
+
+  return docs.slice(0, 8).map((doc, i) => {
+    const lines = [
+      `--- Evaluation Record ${i + 1} ---`,
+      `Job Interview ID : ${doc['Job Interview ID'] || 'N/A'}`,
+      `Panel Member     : ${doc['Panel Name'] || 'N/A'}`,
+      `Candidate        : ${doc['Candidate Name'] || 'N/A'}`,
+      `Overall Score    : ${doc.score !== undefined ? `${doc.score}/10` : 'N/A'}${doc.confidence ? ` (Confidence: ${doc.confidence})` : ''}`,
+    ];
+
+    if (doc.probing_verdict) {
+      lines.push(`Probing Verdict  : ${doc.probing_verdict}`);
     }
-    if (doc.preview) {
-      lines.push(`Content Preview: ${doc.preview.substring(0, 400)}`);
+
+    // ── dimension scores ──────────────────────────────────────────────────
+    if (doc.categories && typeof doc.categories === 'object') {
+      const entries = Object.entries(doc.categories);
+      if (entries.length > 0) {
+        lines.push('Dimension Scores :');
+        for (const [dim, data] of entries) {
+          const dimScore = data?.score !== undefined ? data.score : (typeof data === 'number' ? data : '?');
+          const dimMax   = data?.max  !== undefined ? data.max   : '';
+          lines.push(`  • ${dim}: ${dimScore}${dimMax ? `/${dimMax}` : ''}`);
+        }
+      }
+    }
+
+    // ── evidence (top 3) ─────────────────────────────────────────────────
+    if (Array.isArray(doc.evidence) && doc.evidence.length > 0) {
+      lines.push('Key Evidence     :');
+      doc.evidence.slice(0, 3).forEach((ev) => {
+        const text = typeof ev === 'string' ? ev : (ev?.text || ev?.description || JSON.stringify(ev));
+        lines.push(`  • ${String(text).substring(0, 150)}`);
+      });
+    }
+
+    // ── panel summary ─────────────────────────────────────────────────────
+    if (doc.panel_summary) {
+      lines.push(`Panel Summary    : ${doc.panel_summary.substring(0, 600)}`);
+    }
+
+    // ── L2 validation ─────────────────────────────────────────────────────
+    if (doc.l2_validation) {
+      const l2 = doc.l2_validation;
+      if (l2.verdict)          lines.push(`L2 Verdict       : ${l2.verdict}`);
+      if (l2.probing_verdict)  lines.push(`L2 Probing       : ${l2.probing_verdict}`);
+      if (l2.comments)         lines.push(`L2 Comments      : ${String(l2.comments).substring(0, 200)}`);
+    }
+
+    if (Array.isArray(doc.l2_rejection_reasons) && doc.l2_rejection_reasons.length > 0) {
+      lines.push(`L2 Rejection     : ${doc.l2_rejection_reasons.slice(0, 2).join('; ')}`);
+    }
+
+    if (doc.evaluated_at) {
+      lines.push(`Evaluated At     : ${new Date(doc.evaluated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`);
     }
 
     return lines.filter(Boolean).join('\n');
@@ -152,7 +264,7 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Clamp weights to valid range
+    // Clamp weights to valid range (kept for UI compatibility, not used for DB query)
     const safeB = Math.max(0, Math.min(1, Number(bm25Weight) || 0.4));
     const safeV = Math.max(0, Math.min(1, Number(vectorWeight) || 0.6));
     const validMode = ['hybrid', 'bm25', 'vector'].includes(searchMode) ? searchMode : 'hybrid';
@@ -160,93 +272,42 @@ router.post('/', async (req, res) => {
     const trimmedMessage = message.trim();
     console.log(`[Chat] mode=${validMode} bm25=${safeB} vector=${safeV} msg="${trimmedMessage.substring(0, 80)}"`);
 
-    // Step 1: Run search based on chosen mode
+    // Step 1: Query panel_evaluations directly for rich structured evaluation data.
+    //   • 'bm25'   → strict mode (structured fields only: ID, Panel Name, Candidate Name)
+    //   • 'hybrid' → standard mode (structured fields + panel_summary + transcript)
+    //   • 'vector' → standard mode with larger result set for broader coverage
     let searchResults = [];
     let searchQuery = trimmedMessage;
     let sources = [];
 
     try {
-      if (validMode === 'bm25') {
-        // Pure BM25 / index-based search
-        const bm25Result = await searchBM25(trimmedMessage, {
-          limit: 10,
-          skip: 0,
-        });
-        searchResults = bm25Result.results || [];
-        sources = searchResults.slice(0, 5).map((r) => ({
-          job_interview_id: r.job_interview_id || null,
-          candidate_name: r.candidate_name || null,
-          panel_member_name: r.panel_member_name || null,
-          field_type: r.field_type || null,
-          relevance: r.score || null,
-        }));
-        console.log(`[Chat] BM25 search returned ${searchResults.length} results`);
+      const isStrict = (validMode === 'bm25');
+      const limit    = (validMode === 'vector') ? 12 : 10;
 
-      } else if (validMode === 'vector') {
-        // Pure vector / semantic search
-        const vectorResult = await searchVector(trimmedMessage, {
-          limit: 10,
-          skip: 0,
-          minScore: 0.20,
-        });
-        searchResults = vectorResult.results || [];
-        sources = searchResults.slice(0, 5).map((r) => ({
-          job_interview_id: r.job_interview_id || null,
-          candidate_name: r.candidate_name || null,
-          panel_member_name: r.panel_member_name || null,
-          field_type: r.field_type || null,
-          relevance: r.similarity || r.score || null,
-        }));
-        console.log(`[Chat] Vector search returned ${searchResults.length} results`);
+      searchResults = await searchPanelEvaluations(trimmedMessage, {
+        limit,
+        strictMode: isStrict,
+      });
 
-      } else {
-        // Hybrid search (default) — use caller-supplied weights
-        const hybridResult = await searchHybrid(trimmedMessage, {
-          limit: 10,
-          skip: 0,
-          bm25Weight: safeB,
-          vectorWeight: safeV,
-          vectorMinScore: 0.20,
-        });
-        searchResults = hybridResult.results || [];
-        sources = searchResults.slice(0, 5).map((r) => ({
-          job_interview_id: r.job_interview_id || null,
-          candidate_name: r.candidate_name || null,
-          panel_member_name: r.panel_member_name || null,
-          field_type: r.field_type || null,
-          relevance: r.hybrid_score || r.score || null,
-        }));
-        console.log(`[Chat] Hybrid search returned ${searchResults.length} results`);
-      }
+      sources = searchResults.slice(0, 6).map((doc) => ({
+        job_interview_id : doc['Job Interview ID'] || null,
+        candidate_name   : doc['Candidate Name']   || null,
+        panel_member_name: doc['Panel Name']        || null,
+        score            : doc.score               ?? null,
+        confidence       : doc.confidence          || null,
+        evaluated_at     : doc.evaluated_at        || null,
+      }));
+
+      console.log(`[Chat] panel_evaluations search returned ${searchResults.length} evaluation records`);
 
     } catch (searchErr) {
-      console.warn(`[Chat] ${validMode} search failed, falling back to vector search:`, searchErr.message);
-
-      // Fallback: vector-only search
-      try {
-        const vectorResult = await searchVector(trimmedMessage, {
-          limit: 8,
-          skip: 0,
-          minScore: 0.20,
-        });
-        searchResults = vectorResult.results || [];
-        sources = searchResults.slice(0, 5).map((r) => ({
-          job_interview_id: r.job_interview_id || null,
-          candidate_name: r.candidate_name || null,
-          panel_member_name: r.panel_member_name || null,
-          field_type: r.field_type || null,
-          relevance: r.similarity || null,
-        }));
-        console.log(`[Chat] Vector fallback returned ${searchResults.length} results`);
-      } catch (vectorErr) {
-        console.warn('[Chat] Vector search also failed:', vectorErr.message);
-        // Continue with empty context — LLM will answer from general knowledge
-      }
+      console.warn('[Chat] panel_evaluations search failed:', searchErr.message);
+      // Continue with empty context — LLM will answer from general knowledge
     }
 
-    // Step 2: Format context from search results
-    const contextBlock = formatContextFromResults(searchResults);
-    const modeLabel = validMode === 'bm25' ? 'BM25 index' : validMode === 'vector' ? 'vector semantic' : 'hybrid';
+    // Step 2: Format rich evaluation context for the LLM
+    const contextBlock = formatContextFromEvaluations(searchResults);
+    const modeLabel = validMode === 'bm25' ? 'structured field search' : validMode === 'vector' ? 'broad keyword search' : 'keyword + summary search';
 
     // Step 3: Build message array for GROQ
     // Keep last 10 turns of history to stay within token limits
@@ -256,7 +317,7 @@ router.post('/', async (req, res) => {
       { role: 'system', content: CHAT_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `PANEL DATA CONTEXT (from ${modeLabel} search):\n${contextBlock}`,
+        content: `PANEL EVALUATION DATA (from panel_evaluations collection — ${modeLabel}):\n${contextBlock}`,
       },
       {
         role: 'assistant',
