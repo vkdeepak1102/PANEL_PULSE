@@ -1,0 +1,24 @@
+Job Interview ID,Candidate Name,role,panel_member_id,Panel Name,panel_member_email,JD,L1_decision,L1 Transcript
+TC01,John Doe,Senior Backend Developer,EMP8001,Sarah Jenkins,sarah.j@indium.tech,"Strong experience in Java 11+ and Spring Boot; Microservices architecture and distributed systems; Experience with Relational Databases and query optimization (PostgreSQL); Knowledge of deployment pipelines (Docker/Kubernetes) and API security (JWT).",Select,"Sarah: Hello John, welcome to the interview. To start, can you walk me through your experience building microservices with Spring Boot?
+John: Hi Sarah. Yes, I have about 4 years of experience using Spring Boot to build REST APIs. We deploy them using Jenkins and connect to a PostgreSQL database.
+Sarah: Great. In a distributed microservice environment, how do you handle transaction management across multiple services if one service fails mid-transaction?
+John: Um, we usually just rollback the database locally. If the other service fails, I guess we would try to catch the exception and undo it.
+Sarah: Have you ever used patterns like the Saga pattern or Two-Phase Commit for distributed transactions?
+John: I have read about the Saga pattern, but haven't implemented it practically myself.
+Sarah: No problem. Let's shift to database optimization. If you have a query scanning a table with 10 million rows and it's running too slow, what is your first step to optimize it?
+John: I would add an index to the columns used in the WHERE clause, which usually speeds it up.
+Sarah: What type of index? And how does a B-Tree index structure actually work under the hood when fetching that data?
+John: I usually just use the default index. I am not too sure about how the B-Tree works internally, but it makes the search faster like a phone book.
+Sarah: If the query is still slow after indexing, have you used the EXPLAIN ANALYZE command in PostgreSQL? What specific metrics would you look for in the execution plan?
+John: I haven't used EXPLAIN ANALYZE much, I usually just check the execution time in the application logs.
+Sarah: Okay, moving to deployment. You mentioned Jenkins. How do you containerize a Spring Boot application? Can you explain the difference between a Docker image and a Docker container?
+John: A Docker image is like the file, and the container is when you run it. We use Dockerfiles to build the image.
+Sarah: If you wanted to deploy that container into a Kubernetes cluster, how would you ensure that the application is healthy before Kubernetes starts routing live traffic to it?
+John: I think Kubernetes just knows if it crashes.
+Sarah: Are you familiar with Liveness and Readiness probes in Kubernetes?
+John: No, I haven't written those configurations myself, our DevOps team handles that part.
+Sarah: Finally, on API security, how do you secure your endpoints using JWT? How do you prevent a JWT from being compromised if it's stolen via a Cross-Site Scripting (XSS) attack?
+John: We put the JWT in LocalStorage. If it's stolen, the attacker can use it, so we give them a short expiration time, like 15 minutes.
+Sarah: Have you ever considered storing it in an HttpOnly secure cookie to mitigate XSS?
+John: Oh, I haven't tried that, but it makes sense.
+Sarah: Thank you John, that gives me a good understanding of your technical depth. We'll be in touch."

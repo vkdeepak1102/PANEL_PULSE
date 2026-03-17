@@ -73,13 +73,15 @@ Write a detailed, professional assessment of the interview panel's performance.
 STRICT RULES — follow exactly:
 1. State the overall effectiveness clearly. The score is out of 10.0.
 2. Structure your summary to include points on:
-   - Panel Member Behavior: How professional and prepared the interviewer appeared.
-   - Interview Process: The quality of the structure, flow, and time management.
-   - Rejection Reason Validation: State if the panel validated the provided L2 rejection reason.
-   - Identified Gaps: Conclude with exactly ONE significant probing deficiency or gap identified during the evaluation.
-3. Mention positive highlights ONLY if the Score Category is "Good". For "Moderate" or "Poor", focus on critical gaps and missed opportunities.
+   - Panel Member Behavior: How professional, prepared, and thorough the interviewer appeared.
+   - Interview Process: The quality of the structure, flow, technical depth, and time management.
+   - Rejection Reason Validation: State if the panel successfully extracted the candidate's weaknesses that led to the L2 rejection.
+   - Identified Gaps: If the score is Moderate or Poor, conclude with ONE significant probing deficiency. If the Score is Good (8.0+), state that there were no significant probing gaps.
+3. Tone Mapping based on Score Category:
+   - For "Good" (8.0-10.0): The summary must be highly positive, praising the panelist's deep probing, excellent structure, and thorough technical validation.
+   - For "Moderate" or "Poor": Focus on critical gaps and missed opportunities.
 4. Format as a markdown bulleted list (using '-'). No intro or outro text. Keep it professional and high-level.
-5. Use highly formal, definitive business English. Avoid vague or conversational filler words like "somewhat", "kind of", or "appeared to be". State facts directly (e.g., "The panel members lacked thorough preparation" instead of "The panel members appeared somewhat professional but lacked thorough preparation").`;
+5. Use highly formal, definitive business English. State facts directly.`;
 
 const GAP_ANALYSIS_SYSTEM_PROMPT = `You are a Quality Assurance Specialist for interview panels. 
 Your task is to write a short "Gap Analysis" summary based on the L2 Rejection Reasons and the panel's scoring gaps.
@@ -269,8 +271,9 @@ ${jd}
 ${transcriptText}${reasonsText}
 
 Score each dimension based on how thoroughly the PANEL covered it through their questions.
+CRITICAL SCORING MANDATE: You MUST award MAXIMUM points (e.g., 2.0/2.0, 1.0/1.0) if the panelist exhaustively satisfies the requirement. Do NOT artificially lower scores (e.g., giving 1.6 instead of 2.0) if the panelist did a perfect or highly professional job.
 ${alignmentRuleIntro}
-- If DEEP_PROBING: Score between 1.5 and 2.0 (e.g., 2.0 for exhaustive probing, 1.7 for strong but slightly incomplete probing).
+- If DEEP_PROBING: Score 2.0 for exhaustive and flawless probing. Score 1.8-1.9 for strong but slightly incomplete probing.
 - If SURFACE_PROBING: Score between 0.5 and 1.4 (e.g., 1.0 for basic probing, 1.4 for decent but not deep).
 - If NO_PROBING: Score between 0.0 and 0.4 (e.g., 0.0 for missing it entirely, 0.2 for a very faint, incidental mention).
 Do not just give round numbers; evaluate the exact quality of the alignment.
@@ -309,7 +312,7 @@ Return ONLY a valid JSON object (no extra text):
 }
 
 IMPORTANT:
-- Evidence must only quote the INTERVIEWER/PANEL lines (lines starting with 'Interviewer:' or 'Panel:')
+- Evidence must only quote the INTERVIEWER/PANEL lines (lines starting with 'Interviewer:' or 'Panel:' or specific interviewer names like 'Sarah:')
 - If a dimension was NOT covered by the panel, set its score to 0 and evidence array to []
 - The top-level "score" MUST equal the exact sum of all category scores`;
 }
