@@ -64,7 +64,6 @@ export function EvaluationsList({
               <th className="px-6 py-3 text-left font-bold text-white">Job Interview ID</th>
               <th className="px-6 py-3 text-left font-bold text-white">Panel Name</th>
               <th className="px-6 py-3 text-left font-bold text-white">Candidate Name</th>
-              <th className="px-6 py-3 text-left font-bold text-white">Evaluations</th>
               <th className="px-6 py-3 text-left font-bold text-white">Average Score</th>
             </tr>
           </thead>
@@ -82,7 +81,6 @@ export function EvaluationsList({
                 </td>
                 <td className="px-6 py-3 text-white">{evaluation.panelName}</td>
                 <td className="px-6 py-3 text-white">{evaluation.candidateName}</td>
-                <td className="px-6 py-3 text-slate-300">{evaluation.evaluationCount || 1}</td>
                 <td className="px-6 py-3">
                   <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold ${getScoreBadgeClass(evaluation.averageScore)}`}>
                     {evaluation.averageScore.toFixed(1)}

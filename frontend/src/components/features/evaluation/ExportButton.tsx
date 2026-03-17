@@ -4,14 +4,14 @@ import { useEvaluationStore } from '@/lib/stores/evaluation.store';
 import { DIMENSIONS } from '@/types/evaluation.types';
 
 const BACKEND_LABEL_TO_CAMEL: Record<string, string> = {
-  'Mandatory Skill Coverage':   'mandatorySkillCoverage',
-  'Technical Depth':            'technicalDepth',
+  'Mandatory Skill Coverage': 'mandatorySkillCoverage',
+  'Technical Depth': 'technicalDepth',
   'Scenario / Risk Evaluation': 'scenarioRiskEvaluation',
-  'Framework Knowledge':        'frameworkKnowledge',
-  'Hands-on Validation':        'handsOnValidation',
-  'Leadership Evaluation':      'leadershipEvaluation',
-  'Behavioral Assessment':      'behavioralAssessment',
-  'Interview Structure':        'interviewStructure',
+  'Framework Knowledge': 'frameworkKnowledge',
+  'Hands-on Validation': 'handsOnValidation',
+  'Leadership Evaluation': 'leadershipEvaluation',
+  'Behavioral Assessment': 'behavioralAssessment',
+  'Rejection Validation Alignment': 'rejectionValidationAlignment',
 };
 
 interface Props {
@@ -106,10 +106,57 @@ export function ExportButton({
     }).join('');
 
     // Panel summary
+    const parseSummaryToHtml = (text: string | null) => {
+      if (!text) return '';
+      const lines = text.split('\n').filter(Boolean);
+      const headers = [
+        'Panel Member Behavior:',
+        'Interview Process:',
+        'Rejection Reason Validation:',
+        'Identified Gaps:',
+        'Identification Gaps:',
+        'Overall Effectiveness:'
+      ];
+
+      return lines.map(line => {
+        const trimmed = line.trim();
+        const clean = trimmed.replace(/^[-*]\s*/, '');
+        const isHeader = headers.some(h => clean.startsWith(h));
+
+        if (isHeader) {
+          const headerText = headers.find(h => clean.startsWith(h)) || '';
+          const contentText = clean.substring(headerText.length).trim();
+          
+          return `<div style="font-size:11px;line-height:1.5;margin:8px 0 4px;">
+                    <span style="font-weight:700;color:#f97316;">${esc(headerText)}</span>
+                    ${contentText ? `<span style="color:#374151;margin-left:4px;">${esc(contentText)}</span>` : ''}
+                  </div>`;
+        }
+        return `<div style="font-size:11px;color:#374151;line-height:1.5;margin:2px 0;padding-left:10px;position:relative;">
+                  <span style="position:absolute;left:0;color:#f97316;">•</span>
+                  ${esc(clean)}
+                </div>`;
+      }).join('');
+    }
+
     const summaryHtml = evaluationData?.panelSummary
       ? `<div class="section-block" style="margin-top:18px;padding:12px 14px;background:#f8fafc;border-left:3px solid ${categoryColour};border-radius:4px">
            <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin:0 0 6px">Panel Summary</p>
-           <p style="font-size:11px;color:#374151;line-height:1.6;margin:0">${esc(evaluationData.panelSummary)}</p>
+           ${parseSummaryToHtml(evaluationData.panelSummary)}
+         </div>`
+      : '';
+
+    const gapHtml = evaluationData?.gap_analysis || evaluationData?.gapAnalysis || store.gapAnalysis
+      ? `<div class="section-block" style="margin-top:18px;padding:12px 14px;background:#fff1f2;border-left:3px solid #ef4444;border-radius:4px">
+           <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#b91c1c;margin:0 0 6px">Identified Gaps</p>
+           <ul style="margin:0;padding-left:14px">
+             ${(evaluationData?.gap_analysis || evaluationData?.gapAnalysis || store.gapAnalysis || '')
+               .split('\n')
+               .map((line: string) => line.trim().replace(/^[-*]\s*/, ''))
+               .filter(Boolean)
+               .map((item: string) => `<li style="font-size:11px;color:#991b1b;margin:2px 0;line-height:1.5;font-style:italic">→ ${esc(item)}</li>`)
+               .join('')}
+           </ul>
          </div>`
       : '';
 
@@ -130,10 +177,10 @@ export function ExportButton({
       ? probingRaw.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
       : '';
     const probingColour =
-      probingRaw.includes('DEEP')     ? '#059669' :
-      probingRaw.includes('ADEQUATE') ? '#d97706' :
-      probingRaw.includes('SURFACE')  ? '#dc2626' :
-      probingRaw.includes('NO')       ? '#6b7280' : '#6b7280';
+      probingRaw.includes('DEEP') ? '#059669' :
+        probingRaw.includes('ADEQUATE') ? '#d97706' :
+          probingRaw.includes('SURFACE') ? '#dc2626' :
+            probingRaw.includes('NO') ? '#6b7280' : '#6b7280';
     const l2Verdict: string = l2Val?.verdict ?? '';
     const l2Comments: string = l2Val?.comments ?? '';
     const hasL2 = l2Reasons.length > 0 || probingLabel || l2Verdict;
@@ -142,8 +189,25 @@ export function ExportButton({
            <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin:0 0 8px">L2 Validation</p>
            ${probingLabel ? `<div style="margin-bottom:8px"><span style="font-size:10px;font-weight:700;color:#fff;background:${probingColour};padding:2px 10px;border-radius:99px;text-transform:uppercase;letter-spacing:.04em">${esc(probingLabel)}</span>${l2Verdict ? `<span style="font-size:11px;color:#374151;margin-left:10px">${esc(l2Verdict)}</span>` : ''}</div>` : ''}
            ${l2Comments ? `<p style="font-size:11px;color:#374151;margin:0 0 8px;line-height:1.5">${esc(l2Comments)}</p>` : ''}
-           ${l2Reasons.length ? `<p style="font-size:10px;font-weight:600;color:#374151;margin:0 0 4px">Rejection Reasons:</p><ul style="margin:0;padding-left:18px">${l2Reasons.map((r: string) => `<li style="font-size:11px;color:#374151;margin:2px 0;line-height:1.5">${esc(r)}</li>`).join('')}</ul>` : ''}
-         </div>`
+            ${l2Reasons.length ? `<p style="font-size:10px;font-weight:600;color:#374151;margin:0 0 4px">Rejection Reasons:</p>
+            <ul style="margin:0;padding-left:18px">
+              ${l2Reasons.map((r: string) => {
+                const jf = l2Val?.justifications?.[r];
+                const summary = (typeof jf === 'object' && !Array.isArray(jf)) ? (jf as any).summary : null;
+                const points = Array.isArray(jf) ? jf : ((jf as any)?.points || []);
+                
+                return `<li style="font-size:11px;color:#374151;margin:4px 0;line-height:1.5">
+                  <div style="font-weight:600;color:#1f2937;margin-bottom:2px">${esc(r)}</div>
+                  ${summary ? `<p style="font-size:10px;color:#4b5563;margin:0 0 4px;line-height:1.4">${esc(summary)}</p>` : ''}
+                  ${points.length > 0 ? `
+                    <ul style="margin:2px 0 4px;padding-left:12px;list-style:none;">
+                      ${points.map((p: string) => `<li style="font-size:10px;color:#6b7280;margin:1px 0;font-style:italic">→ ${esc(p)}</li>`).join('')}
+                    </ul>
+                  ` : ''}
+                </li>`;
+              }).join('')}
+            </ul>` : ''}
+          </div>`
       : '';
 
     // JD Skills
@@ -208,7 +272,9 @@ export function ExportButton({
 </head>
 <body>
   <div class="header-bar">
-    <span class="brand">Panel Pulse AI</span>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <img src="${window.location.origin}/INDIUM LOGO.png" alt="Indium Logo" style="height:32px; object-fit:contain;" />
+    </div>
     <span style="font-size:10px;color:#9ca3af">${dateStr} · ${timeStr}</span>
   </div>
 
@@ -241,6 +307,7 @@ export function ExportButton({
   </table>
 
   ${summaryHtml}
+  ${gapHtml}
   ${l2Html}
   ${jdHtml}
 

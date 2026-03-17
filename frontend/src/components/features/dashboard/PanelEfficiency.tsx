@@ -43,9 +43,9 @@ export function PanelEfficiency() {
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-border-primary bg-bg-base">
                 <th className="px-card py-4 text-left font-semibold text-text-primary">Panel Name</th>
-                <th className="px-card py-4 text-right font-semibold text-text-primary">Avg Score</th>
-                <th className="px-card py-4 text-right font-semibold text-text-primary">Evaluations</th>
-                <th className="px-card py-4 text-right font-semibold text-text-primary">Score Range</th>
+                <th className="px-card py-4 text-center font-semibold text-text-primary">Avg Score</th>
+                <th className="px-card py-4 text-center font-semibold text-text-primary">Evaluations</th>
+                <th className="px-card py-4 text-center font-semibold text-text-primary">Score Range</th>
               </tr>
             </thead>
             <tbody>
@@ -55,13 +55,13 @@ export function PanelEfficiency() {
                   className="border-b border-border-primary hover:bg-bg-base transition-colors last:border-b-0"
                 >
                   <td className="px-card py-4 font-medium text-text-primary">{panel.panelName}</td>
-                  <td className="px-card py-4 text-right">
+                  <td className="px-card py-4 text-center">
                     <span className={`font-bold ${getScoreColor(panel.averageScore)}`}>
                       {panel.averageScore}
                     </span>
                   </td>
-                  <td className="px-card py-4 text-right text-text-secondary">{panel.evaluationCount}</td>
-                  <td className="px-card py-4 text-right text-text-muted text-xs">{panel.scoreRange}</td>
+                  <td className="px-card py-4 text-center text-text-secondary">{panel.evaluationCount}</td>
+                  <td className="px-card py-4 text-center text-text-muted text-xs">{panel.scoreRange}</td>
                 </tr>
               ))}
             </tbody>

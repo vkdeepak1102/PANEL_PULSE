@@ -13,7 +13,7 @@ const BACKEND_LABEL_TO_KEY: Record<string, string> = {
   'Hands-on Validation':        'handsOnValidation',
   'Leadership Evaluation':      'leadershipEvaluation',
   'Behavioral Assessment':      'behavioralAssessment',
-  'Interview Structure':        'interviewStructure',
+  'Rejection Validation Alignment': 'rejectionValidationAlignment',
 };
 
 interface Props {

@@ -17,7 +17,7 @@ export function Sidebar() {
 
       {/* Indium branding — above Settings */}
       <div className="pb-3 flex justify-center">
-        <IndiumLogo className="w-28 opacity-70 hover:opacity-100 transition-opacity duration-200" />
+        <IndiumLogo className="w-40 opacity-70 hover:opacity-100 transition-opacity duration-200" />
       </div>
 
       {/* Settings */}

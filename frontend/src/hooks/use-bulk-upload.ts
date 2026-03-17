@@ -39,6 +39,8 @@ export interface EvaluationTask {
   jd: string;
   l1Transcript: string;
   l2RejectionReason: string;
+  panelMemberId?: string;
+  panelMemberEmail?: string;
   status: TaskStatus;
   /** Human-readable status message / error detail */
   message?: string;
@@ -87,14 +89,19 @@ const COL_L2 = [
   'l2 reason', 'l2_reason', 'l2reason',
   'rejection reason', 'rejection_reason', 'l2',
 ];
+const COL_PANEL_ID = ['panel_member_id', 'panel id', 'panel_id', 'panelid', 'employee id', 'employee_id'];
+const COL_PANEL_EMAIL = ['panel_member_email', 'panel email', 'panel_email', 'panelemail', 'email'];
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useBulkUpload() {
   const [tasks, setTasks] = useState<EvaluationTask[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
   const abortRef = useRef(false);
+
+  const isComplete = tasks.length > 0 && tasks.every(
+    (t) => t.status === 'done' || t.status === 'skipped' || t.status === 'error'
+  );
 
   // ── Parse ──────────────────────────────────────────────────────────────────
 
@@ -146,6 +153,12 @@ export function useBulkUpload() {
       if (!l2ReasonCol)
         issues.push({ level: 'error', message: 'L2 file: "L2 Rejected Reason" column not found.' });
 
+      // Panel details extraction
+      const l1PanelIdCol = findColumnKey(l1Csv.headers, COL_PANEL_ID);
+      const l1PanelEmailCol = findColumnKey(l1Csv.headers, COL_PANEL_EMAIL);
+      const l2PanelIdCol = findColumnKey(l2Csv.headers, COL_PANEL_ID);
+      const l2PanelEmailCol = findColumnKey(l2Csv.headers, COL_PANEL_EMAIL);
+
       // Stop if any hard errors
       if (issues.some((i) => i.level === 'error')) {
         setTasks([]);
@@ -161,11 +174,17 @@ export function useBulkUpload() {
         });
       }
 
-      const l2Map = new Map<string, string>();
+      const l2Map = new Map<string, { reason: string; id?: string; email?: string }>();
       if (l2IdCol && l2ReasonCol) {
         l2Csv.rows.forEach((row) => {
           const id = row[l2IdCol]?.trim().toUpperCase();
-          if (id) l2Map.set(id, row[l2ReasonCol]?.trim() ?? '');
+          if (id) {
+            l2Map.set(id, {
+              reason: row[l2ReasonCol]?.trim() ?? '',
+              id: l2PanelIdCol ? row[l2PanelIdCol]?.trim() : undefined,
+              email: l2PanelEmailCol ? row[l2PanelEmailCol]?.trim() : undefined,
+            });
+          }
         });
       }
 
@@ -182,7 +201,12 @@ export function useBulkUpload() {
 
           const keyUpper = jobId.toUpperCase();
           const jd = jdMap.get(keyUpper) ?? '';
-          const l2Reason = l2Map.get(keyUpper) ?? '';
+          const l2Data = l2Map.get(keyUpper);
+          const l2Reason = l2Data?.reason ?? '';
+
+          // Prefer info from L1, fallback to L2 if present
+          const panelMemberId = (l1PanelIdCol ? row[l1PanelIdCol]?.trim() : '') || l2Data?.id || '';
+          const panelMemberEmail = (l1PanelEmailCol ? row[l1PanelEmailCol]?.trim() : '') || l2Data?.email || '';
 
           if (!jd) {
             issues.push({
@@ -199,6 +223,8 @@ export function useBulkUpload() {
             jd,
             l1Transcript,
             l2RejectionReason: l2Reason,
+            panelMemberId,
+            panelMemberEmail,
             status: 'pending',
           });
         });
@@ -212,7 +238,6 @@ export function useBulkUpload() {
       }
 
       setTasks(parsed);
-      setIsComplete(false);
       return issues;
     },
     []
@@ -228,7 +253,6 @@ export function useBulkUpload() {
     async (tasksToRun: EvaluationTask[]) => {
       if (tasksToRun.length === 0) return;
       setIsRunning(true);
-      setIsComplete(false);
       abortRef.current = false;
 
       let doneCount = 0;
@@ -268,6 +292,8 @@ export function useBulkUpload() {
             jd: task.jd,
             l1Transcript: task.l1Transcript,
             l2RejectionReason: task.l2RejectionReason,
+            panel_member_id: task.panelMemberId,
+            panel_member_email: task.panelMemberEmail,
           });
 
           updateTask(task.id, {
@@ -292,7 +318,6 @@ export function useBulkUpload() {
       }
 
       setIsRunning(false);
-      setIsComplete(true);
 
       if (doneCount > 0)
         toast.success(`Bulk complete: ${doneCount} of ${tasksToRun.length} evaluated ✓`);
@@ -310,11 +335,17 @@ export function useBulkUpload() {
     runBatch(tasks);
   }, [runBatch, tasks]);
 
+  const startSingle = useCallback((taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      runBatch([task]);
+    }
+  }, [runBatch, tasks]);
+
   const reset = useCallback(() => {
     abortRef.current = true;
     setTasks([]);
     setIsRunning(false);
-    setIsComplete(false);
   }, []);
 
   const summary: BulkUploadSummary = {
@@ -339,6 +370,7 @@ export function useBulkUpload() {
     progress,
     parseFiles,
     startBatch,
+    startSingle,
     reset,
   };
 }

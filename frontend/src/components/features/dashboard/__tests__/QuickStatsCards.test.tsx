@@ -32,7 +32,7 @@ describe('QuickStatsCards Component', () => {
     );
 
     expect(screen.getByText(/Total Evaluations/i)).toBeInTheDocument();
-    expect(screen.getByText(/Average Score/i)).toBeInTheDocument();
+    expect(screen.getByText(/Total Average Score/i)).toBeInTheDocument();
     expect(screen.getByText(/Last Evaluation/i)).toBeInTheDocument();
     expect(screen.getByText(/This Week/i)).toBeInTheDocument();
   });

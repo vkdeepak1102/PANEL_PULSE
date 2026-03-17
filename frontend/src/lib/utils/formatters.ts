@@ -41,7 +41,7 @@ export function getDimensionColourClass(dimensionKey: string): string {
     handsOnValidation: 'score-handson',
     leadershipEvaluation: 'score-leadership',
     behavioralAssessment: 'score-behavioral',
-    interviewStructure: 'score-structure',
+    rejectionValidationAlignment: 'score-structure',
   };
   return colourMap[dimensionKey] || 'score-primary';
 }

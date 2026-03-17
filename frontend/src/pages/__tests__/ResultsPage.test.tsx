@@ -45,7 +45,7 @@ describe('ResultsPage', () => {
         handsOnValidation: 0.8,
         leadershipEvaluation: 0.7,
         behavioralAssessment: 0.9,
-        interviewStructure: 0.6,
+        rejectionValidationAlignment: 2.0,
       },
       evidence: { general: ['Candidate: uses joins often', 'Candidate: explained optimization'] },
       timestamp: new Date().toISOString(),

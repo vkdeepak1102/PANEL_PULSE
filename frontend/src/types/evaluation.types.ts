@@ -10,12 +10,12 @@ export interface PanelEfficiencyScore {
 export interface DimensionScores {
   mandatorySkillCoverage: number;
   technicalDepth: number;
+  rejectionValidationAlignment: number;
   scenarioRiskEvaluation: number;
   frameworkKnowledge: number;
   handsOnValidation: number;
   leadershipEvaluation: number;
   behavioralAssessment: number;
-  interviewStructure: number;
 }
 
 export interface Dimension {
@@ -27,12 +27,12 @@ export interface Dimension {
   colour: string;
 }
 
-// Weighted scoring: Mandatory (25%) + Technical (25%) = 50%; remaining 6 share 50%
+// Weighted scoring
 export const DIMENSIONS: Record<string, Dimension> = {
   mandatorySkillCoverage: {
     id: 'mandatorySkillCoverage',
     name: 'Mandatory Skill Coverage',
-    maxScore: 2.5,
+    maxScore: 2.0,
     actualScore: 0,
     evidence: [],
     colour: 'score-mandatory',
@@ -40,10 +40,18 @@ export const DIMENSIONS: Record<string, Dimension> = {
   technicalDepth: {
     id: 'technicalDepth',
     name: 'Technical Depth',
-    maxScore: 2.5,
+    maxScore: 2.0,
     actualScore: 0,
     evidence: [],
     colour: 'score-technical',
+  },
+  rejectionValidationAlignment: {
+    id: 'rejectionValidationAlignment',
+    name: 'Rejection Validation Alignment',
+    maxScore: 2.0,
+    actualScore: 0,
+    evidence: [],
+    colour: 'score-structure',
   },
   scenarioRiskEvaluation: {
     id: 'scenarioRiskEvaluation',
@@ -72,7 +80,7 @@ export const DIMENSIONS: Record<string, Dimension> = {
   leadershipEvaluation: {
     id: 'leadershipEvaluation',
     name: 'Leadership Evaluation',
-    maxScore: 0.75,
+    maxScore: 0.5,
     actualScore: 0,
     evidence: [],
     colour: 'score-leadership',
@@ -80,17 +88,9 @@ export const DIMENSIONS: Record<string, Dimension> = {
   behavioralAssessment: {
     id: 'behavioralAssessment',
     name: 'Behavioral Assessment',
-    maxScore: 0.75,
-    actualScore: 0,
-    evidence: [],
-    colour: 'score-behavioral',
-  },
-  interviewStructure: {
-    id: 'interviewStructure',
-    name: 'Interview Structure',
     maxScore: 0.5,
     actualScore: 0,
     evidence: [],
-    colour: 'score-structure',
+    colour: 'score-behavioral',
   },
 };

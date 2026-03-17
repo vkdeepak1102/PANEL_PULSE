@@ -56,7 +56,7 @@ export function QuickStatsCards({
       />
       <StatCard
         icon={<TrendingUp className="w-5 h-5" />}
-        label="Average Score"
+        label="Total Average Score"
         value={averageScore.toFixed(1)}
         loading={loading}
         iconBg="from-orange-500/20 to-orange-600/10"

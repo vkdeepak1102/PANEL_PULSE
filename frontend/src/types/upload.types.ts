@@ -12,4 +12,6 @@ export interface UploadRequest {
   jd: string;
   l1Transcript: string;
   l2RejectionReason: string;
+  panel_member_id?: string;
+  panel_member_email?: string;
 }

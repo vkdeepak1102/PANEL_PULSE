@@ -25,20 +25,20 @@ export default function DashboardPage() {
       } catch (err) {
         console.error('Failed to fetch stats:', err);
       }
-      
+
       try {
         await loadAllEvaluations();
       } catch (err) {
         console.error('Failed to load evaluations:', err);
       }
-      
+
       try {
         await loadTotalPanels();
       } catch (err) {
         console.error('Failed to load total panels:', err);
       }
     };
-    
+
     loadData();
   }, [fetchStats]);
 

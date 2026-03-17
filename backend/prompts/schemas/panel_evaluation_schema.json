@@ -17,7 +17,7 @@
         "Hands-on Validation": { "type": "number" },
         "Leadership Evaluation": { "type": "number" },
         "Behavioral Assessment": { "type": "number" },
-        "Interview Structure": { "type": "number" }
+        "Rejection Validation Alignment": { "type": "number" }
       },
       "additionalProperties": false
     },

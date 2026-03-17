@@ -1,23 +1,23 @@
 export const DIMENSION_NAMES: Record<string, string> = {
   mandatorySkillCoverage: 'Mandatory Skill Coverage',
   technicalDepth: 'Technical Depth',
+  rejectionValidationAlignment: 'Rejection Validation Alignment',
   scenarioRiskEvaluation: 'Scenario/Risk Evaluation',
   frameworkKnowledge: 'Framework Knowledge',
   handsOnValidation: 'Hands-on Validation',
   leadershipEvaluation: 'Leadership Evaluation',
   behavioralAssessment: 'Behavioral Assessment',
-  interviewStructure: 'Interview Structure',
 };
 
 export const DIMENSION_MAX_SCORES: Record<string, number> = {
   mandatorySkillCoverage: 2.0,
-  technicalDepth: 1.5,
+  technicalDepth: 2.0,
+  rejectionValidationAlignment: 2.0,
   scenarioRiskEvaluation: 1.0,
   frameworkKnowledge: 1.0,
   handsOnValidation: 1.0,
-  leadershipEvaluation: 1.0,
-  behavioralAssessment: 1.0,
-  interviewStructure: 1.5,
+  leadershipEvaluation: 0.5,
+  behavioralAssessment: 0.5,
 };
 
 export const SCORE_CATEGORIES = {

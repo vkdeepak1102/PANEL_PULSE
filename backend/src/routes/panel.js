@@ -69,7 +69,7 @@ router.get('/check-existing', async (req, res) => {
  */
 router.post('/score', async (req, res) => {
   try {
-    const { job_id, panel_name, candidate_name, jd, l1_transcripts, l2_rejection_reasons } = req.body;
+    const { job_id, panel_name, candidate_name, jd, l1_transcripts, l2_rejection_reasons, panel_member_id, panel_member_email } = req.body;
 
     // Validate required parameters
     if (!job_id || !jd || !l1_transcripts) {
@@ -132,7 +132,9 @@ router.post('/score', async (req, res) => {
       candidate_name,
       jd,
       l1_transcripts,
-      l2_rejection_reasons
+      l2_rejection_reasons,
+      panel_member_id,
+      panel_member_email
     });
 
     if (!result.success) {
@@ -658,6 +660,157 @@ router.get('/refined-jd/:jobId', async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/v1/panel/insights/directory
+ * 
+ * Get panelist directory stats: total evaluations, average score, last eval date
+ */
+router.get('/insights/directory', async (req, res) => {
+  try {
+    const { getDb } = require('../services/mongoClient');
+    const db = await getDb();
+    const evalCollection = db.collection('panel_evaluations');
+
+    const directory = await evalCollection.aggregate([
+      {
+        $match: { 'Panel Name': { $exists: true, $ne: null, $ne: '' } }
+      },
+      {
+        $group: {
+          _id: '$Panel Name',
+          totalEvaluations: { $sum: 1 },
+          averageScore: { $avg: '$score' },
+          lastEvaluationDate: { $max: '$evaluated_at' }
+        }
+      },
+      { $sort: { totalEvaluations: -1 } }
+    ]).toArray();
+
+    const formattedDirectory = directory.map(d => ({
+      panelName: d._id,
+      totalEvaluations: d.totalEvaluations,
+      averageScore: Math.round(d.averageScore * 10) / 10,
+      lastEvaluationDate: d.lastEvaluationDate 
+        ? new Date(d.lastEvaluationDate).toISOString().split('T')[0]
+        : 'N/A'
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: formattedDirectory,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch panel directory',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/v1/panel/insights/profile/:name
+ * 
+ * Get detailed history and dimension averages for a specific panelist
+ */
+router.get('/insights/profile/:name', async (req, res) => {
+  try {
+    const panelName = req.params.name;
+    const { getDb } = require('../services/mongoClient');
+    const db = await getDb();
+    const evalCollection = db.collection('panel_evaluations');
+
+    const evaluations = await evalCollection
+      .find({ 'Panel Name': panelName })
+      .sort({ created_at: 1 }) // Chronological for line charts
+      .toArray();
+
+    if (evaluations.length === 0) {
+      return res.status(404).json({ success: false, error: 'Panelist not found' });
+    }
+
+    // Averages
+    let totalScore = 0;
+    const categorySums = {};
+    const categoryCounts = {};
+
+    const history = evaluations.map(doc => {
+      totalScore += (doc.score || 0);
+      
+      if (doc.categories) {
+        for (const [key, val] of Object.entries(doc.categories)) {
+          categorySums[key] = (categorySums[key] || 0) + val;
+          categoryCounts[key] = (categoryCounts[key] || 0) + 1;
+        }
+      }
+      return {
+        id: doc._id.toString(),
+        jobId: doc['Job Interview ID'],
+        candidateName: doc['Candidate Name'],
+        score: doc.score,
+        date: doc.evaluated_at ? new Date(doc.evaluated_at).toISOString().split('T')[0] : 'N/A'
+      };
+    });
+
+    const averageScore = Math.round((totalScore / evaluations.length) * 10) / 10;
+    
+    // Calculate dimension averages
+    const dimensionAverages = {};
+    for (const key of Object.keys(categorySums)) {
+      dimensionAverages[key] = Math.round((categorySums[key] / categoryCounts[key]) * 100) / 100;
+    }
+
+    // Get Panel Details from MongoDB evaluation records
+    let employeeId = 'N/A';
+    let email = 'N/A';
+    try {
+      const { getDb } = require('../services/mongoClient');
+      const db = await getDb();
+      const evalCollection = db.collection('panel_evaluations');
+      
+      // Find the most recent evaluation for this panel that has ID or Email
+      const latestWithInfo = await evalCollection.findOne(
+        { 
+          'Panel Name': panelName,
+          $or: [
+            { panel_member_id: { $ne: '', $exists: true } },
+            { panel_member_email: { $ne: '', $exists: true } }
+          ]
+        },
+        { sort: { evaluated_at: -1 } }
+      );
+
+      if (latestWithInfo) {
+        employeeId = latestWithInfo.panel_member_id || 'N/A';
+        email = latestWithInfo.panel_member_email || 'N/A';
+      }
+    } catch (e) {
+      console.warn("Failed to fetch panel details from DB:", e);
+    }
+    
+    return res.status(200).json({
+      success: true,
+      data: {
+        panelName,
+        employeeId,
+        email,
+        totalEvaluations: evaluations.length,
+        averageScore,
+        dimensionAverages,
+        history
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch panel profile',
+      details: error.message
+    });
   }
 });
 

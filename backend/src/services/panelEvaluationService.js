@@ -10,14 +10,14 @@ const axios = require('axios');
 // Panel scoring configuration — max scores per dimension; final score = SUM of all
 // Weighted: Mandatory (25%) + Technical Depth (25%) = 50%; remaining 6 dims share 50%
 const PANEL_DIMENSIONS = {
-  'Mandatory Skill Coverage':   { max: 2.5  }, // 25% of 10
-  'Technical Depth':            { max: 2.5  }, // 25% of 10
-  'Scenario / Risk Evaluation': { max: 1.0  }, // \
-  'Framework Knowledge':        { max: 1.0  }, //  \
-  'Hands-on Validation':        { max: 1.0  }, //   > remaining 5.0 / 10 (50%)
-  'Leadership Evaluation':      { max: 0.75 }, //  /
-  'Behavioral Assessment':      { max: 0.75 }, // /
-  'Interview Structure':        { max: 0.5  }  // /
+  'Mandatory Skill Coverage': { max: 2.0 },
+  'Technical Depth': { max: 2.0 },
+  'Rejection Validation Alignment': { max: 2.0 }, // Added based on user feedback
+  'Scenario / Risk Evaluation': { max: 1.0 },
+  'Framework Knowledge': { max: 1.0 },
+  'Hands-on Validation': { max: 1.0 },
+  'Leadership Evaluation': { max: 0.5 },
+  'Behavioral Assessment': { max: 0.5 }
 };
 // Maximum possible panel score (sum of all dimension maxes) = 10.0
 const MAX_PANEL_SCORE = Object.values(PANEL_DIMENSIONS).reduce((s, d) => s + d.max, 0);
@@ -68,19 +68,37 @@ T – Tone
 Professional. Structured. Precise. Enterprise HR/Senior Manager standard. Neutral and objective.`;
 
 const PANEL_SUMMARY_SYSTEM_PROMPT = `You are a Senior HR Manager reviewing a panel interview evaluation report.
-Write a concise 3-5 sentence paragraph summarising the panel's overall effectiveness in this interview.
+Write a detailed, professional assessment of the interview panel's performance.
 
 STRICT RULES — follow exactly:
-1. The overall score is always out of 10.0. State it as "X out of 10" (never "out of 11").
-2. Each dimension in the data is labelled ACCEPTABLE (scored ≥50% of its max) or WEAK (scored <50% of its max).
-   - Do NOT mention, criticize, or reference any dimension labelled ACCEPTABLE.
-   - Only mention WEAK dimensions as areas needing improvement.
-3. Mention positive highlights and strengths ONLY if the Score Category is "Good".
-   For "Moderate" or "Poor", focus exclusively on the WEAK dimensions — no praise.
-4. Use professional, neutral tone. No bullet points. No headings. Plain paragraph only.`;
+1. State the overall effectiveness clearly. The score is out of 10.0.
+2. Structure your summary to include points on:
+   - Panel Member Behavior: How professional and prepared the interviewer appeared.
+   - Interview Process: The quality of the structure, flow, and time management.
+   - Rejection Reason Validation: State if the panel validated the provided L2 rejection reason.
+   - Identified Gaps: Conclude with exactly ONE significant probing deficiency or gap identified during the evaluation.
+3. Mention positive highlights ONLY if the Score Category is "Good". For "Moderate" or "Poor", focus on critical gaps and missed opportunities.
+4. Format as a markdown bulleted list (using '-'). No intro or outro text. Keep it professional and high-level.
+5. Use highly formal, definitive business English. Avoid vague or conversational filler words like "somewhat", "kind of", or "appeared to be". State facts directly (e.g., "The panel members lacked thorough preparation" instead of "The panel members appeared somewhat professional but lacked thorough preparation").`;
+
+const GAP_ANALYSIS_SYSTEM_PROMPT = `You are a Quality Assurance Specialist for interview panels. 
+Your task is to write a short "Gap Analysis" summary based on the L2 Rejection Reasons and the panel's scoring gaps.
+
+Analyze:
+1. Did the panel fail to ask enough questions in the areas where the candidate was rejected?
+2. Did they accept surface-level answers for critical mandatory skills?
+3. What specifically should the panel have probed deeper on to confirm the rejection earlier?
+
+Rules:
+1. Be direct and constructive.
+2. Focus ONLY on the gaps in the panel member's probing behavior.
+3. Format as a bulleted markdown list. No intro/outro.`;
 
 const L2_VALIDATION_SYSTEM_PROMPT = `You are an L2 validation expert reviewing rejection reasons.
 Classify the probing depth and validate evidence from transcripts.
+For each rejection reason, you MUST provide:
+1. A clear one-line "summary" explaining where/how the panel probed this area and the result.
+2. 1-2 short, specific "points" of evidence based ONLY on the transcript.
 Return ONLY valid JSON. No additional text.`;
 
 /**
@@ -97,7 +115,7 @@ Return ONLY valid JSON. No additional text.`;
  */
 async function performPanelEvaluation(input) {
   try {
-    const { job_id, panel_name = '', candidate_name = '', jd, l1_transcripts, l2_rejection_reasons = [] } = input;
+    const { job_id, panel_name = '', candidate_name = '', jd, l1_transcripts, l2_rejection_reasons = [], panel_member_id = '', panel_member_email = '' } = input;
 
     // Validate inputs
     if (!job_id || !jd || !l1_transcripts || l1_transcripts.length === 0) {
@@ -108,8 +126,22 @@ async function performPanelEvaluation(input) {
       throw new Error('l1_transcripts must be an array of strings');
     }
 
-    // Build the evaluation prompt
-    const userPrompt = _buildPanelScoringPrompt(job_id, jd, l1_transcripts, l2_rejection_reasons);
+    let forcedL2Verdict = '';
+    
+    // Enforce Probing Depth Locking: Run L2 Validation first to determine the exact verdict
+    if (l2_rejection_reasons && l2_rejection_reasons.length > 0 && l2_rejection_reasons[0]) {
+      try {
+        const l2Res = await _validateL2Rejection(job_id, l2_rejection_reasons[0], l1_transcripts);
+        if (l2Res && l2Res.success && l2Res.validation && l2Res.validation.probing_verdict) {
+          forcedL2Verdict = l2Res.validation.probing_verdict;
+        }
+      } catch (err) {
+        console.warn('Could not pre-calculate L2 validation for scoring alignment:', err.message);
+      }
+    }
+
+    // Build the evaluation prompt, injecting the strict verdict
+    const userPrompt = _buildPanelScoringPrompt(job_id, jd, l1_transcripts, l2_rejection_reasons, forcedL2Verdict);
 
     // Call GROQ LLM
     const groqResponse = await _callGroqWithRetry(userPrompt, PANEL_SCORING_SYSTEM_PROMPT);
@@ -117,26 +149,30 @@ async function performPanelEvaluation(input) {
     // Parse and validate response
     const evaluation = _parseAndValidatePanelScore(groqResponse, job_id);
 
-    // Generate refined JD and panel summary (run in parallel to save time)
+    // 5 & 6. Generate Gap Analysis first (as it's used in the main summary)
+    const gapAnalysis = await _generateGapAnalysis(evaluation, jd, l2_rejection_reasons);
+
+    // Generate refined JD and detailed panel summary in parallel
     const [refinedJd, panelSummary] = await Promise.all([
       _generateRefinedJD(jd),
-      _generatePanelSummary(evaluation, jd),
+      _generatePanelSummary(evaluation, jd, l2_rejection_reasons, gapAnalysis),
     ]);
 
-    // Store evaluation in MongoDB
+    evaluation.panel_summary = panelSummary;
+    evaluation.gap_analysis = gapAnalysis;
+
+    // 7. Store in DB
     await _storeEvaluationInDB({
-      job_id,
+      ...evaluation,
       panel_name,
       candidate_name,
-      score: evaluation.score,
-      categories: evaluation.categories,
-      confidence: evaluation.confidence,
-      evidence: evaluation.evidence,
-      l2_validation: evaluation.l2_validation,
       l2_rejection_reasons,
       l1_transcript: l1_transcripts.join('\n\n'),
       refined_jd: refinedJd,
       panel_summary: panelSummary,
+      gap_analysis: gapAnalysis,
+      panel_member_id,
+      panel_member_email
     });
 
     return {
@@ -144,6 +180,7 @@ async function performPanelEvaluation(input) {
       evaluation: evaluation,
       refined_jd: refinedJd,
       panel_summary: panelSummary,
+      gap_analysis: gapAnalysis,
       timestamp: new Date().toISOString()
     };
   } catch (error) {
@@ -211,11 +248,15 @@ async function validateL2Rejection(input) {
  * 
  * @private
  */
-function _buildPanelScoringPrompt(job_id, jd, l1_transcripts, l2_rejection_reasons) {
+function _buildPanelScoringPrompt(job_id, jd, l1_transcripts, l2_rejection_reasons, forcedL2Verdict = '') {
   const transcriptText = l1_transcripts.map((t, i) => `Transcript ${i + 1}:\n${t}`).join('\n\n');
-  const reasonsText = l2_rejection_reasons.length > 0 
+  const reasonsText = l2_rejection_reasons.length > 0
     ? `\n\nL2 Rejection Reasons:\n${l2_rejection_reasons.map((r, i) => `${i + 1}. ${r}`).join('\n')}`
     : '';
+
+  const alignmentRuleIntro = forcedL2Verdict 
+    ? `CRITICAL SCORING RULE:\nAn independent AI analysis has concretely established the Probing Depth verdict for this interview is: **${forcedL2Verdict}**.\nYou MUST assign the "Rejection Validation Alignment" score in exact accordance with this pre-determined verdict:`
+    : `For "Rejection Validation Alignment", assign a precise decimal score based on the Probing Depth verdict:`;
 
   return `You are evaluating PANEL EFFICIENCY — how well the INTERVIEWER/PANEL probed the candidate.
 Focus on the INTERVIEWER's questions and probing depth, NOT the candidate's answers.
@@ -228,6 +269,11 @@ ${jd}
 ${transcriptText}${reasonsText}
 
 Score each dimension based on how thoroughly the PANEL covered it through their questions.
+${alignmentRuleIntro}
+- If DEEP_PROBING: Score between 1.5 and 2.0 (e.g., 2.0 for exhaustive probing, 1.7 for strong but slightly incomplete probing).
+- If SURFACE_PROBING: Score between 0.5 and 1.4 (e.g., 1.0 for basic probing, 1.4 for decent but not deep).
+- If NO_PROBING: Score between 0.0 and 0.4 (e.g., 0.0 for missing it entirely, 0.2 for a very faint, incidental mention).
+Do not just give round numbers; evaluate the exact quality of the alignment.
 Each dimension has its own maximum score — score within that range ONLY.
 
 Return ONLY a valid JSON object (no extra text):
@@ -236,24 +282,24 @@ Return ONLY a valid JSON object (no extra text):
   "score": <sum of all category scores>,
   "confidence": <0-1>,
   "categories": {
-    "Mandatory Skill Coverage": <0 to 2.5>,
-    "Technical Depth": <0 to 2.5>,
+    "Mandatory Skill Coverage": <0 to 2.0>,
+    "Technical Depth": <0 to 2.0>,
+    "Rejection Validation Alignment": <0 to 2.0>,
     "Scenario / Risk Evaluation": <0 to 1.0>,
     "Framework Knowledge": <0 to 1.0>,
     "Hands-on Validation": <0 to 1.0>,
-    "Leadership Evaluation": <0 to 0.75>,
-    "Behavioral Assessment": <0 to 0.75>,
-    "Interview Structure": <0 to 0.5>
+    "Leadership Evaluation": <0 to 0.5>,
+    "Behavioral Assessment": <0 to 0.5>
   },
   "evidence": {
     "Mandatory Skill Coverage": ["Interviewer question or probing statement that covered this dimension"],
     "Technical Depth": ["Interviewer question or probing statement"],
+    "Rejection Validation Alignment": ["Interviewer question or probing statement targeting the specific rejection reasons"],
     "Scenario / Risk Evaluation": ["Interviewer question or probing statement"],
     "Framework Knowledge": ["Interviewer question or probing statement"],
     "Hands-on Validation": ["Interviewer question or probing statement"],
     "Leadership Evaluation": ["Interviewer question or probing statement"],
-    "Behavioral Assessment": ["Interviewer question or probing statement"],
-    "Interview Structure": ["Interviewer question or probing statement"]
+    "Behavioral Assessment": ["Interviewer question or probing statement"]
   },
   "probing_verdict": "NO_PROBING|SURFACE_PROBING|DEEP_PROBING",
   "l2_validation": {
@@ -293,6 +339,12 @@ Return a JSON object with:
       "source": "transcript_1:line_range"
     }
   ],
+  "justifications": {
+    "${String(l2_reason).split(',')[0].trim()}": {
+      "summary": "One-line justification of where/how the panel member probed this area.",
+      "points": ["Specific transcript point 1", "Specific transcript point 2"]
+    }
+  },
   "confidence": <0-1>,
   "notes": "brief validation verdict"
 }`;
@@ -520,9 +572,9 @@ async function _generateRefinedJD(jd) {
     const raw = await _callGroqWithRetry(userPrompt, JD_REFINE_SYSTEM_PROMPT);
     // Parse sections
     const parsed = { key_skills: [], mandatory_skills: [], good_to_have_skills: [], raw };
-    const keyMatch     = raw.match(/Key Skills[:\s]*([\s\S]*?)(?=Mandatory Skills|Good To Have Skills|$)/i);
+    const keyMatch = raw.match(/Key Skills[:\s]*([\s\S]*?)(?=Mandatory Skills|Good To Have Skills|$)/i);
     const mandatoryMatch = raw.match(/Mandatory Skills[:\s]*([\s\S]*?)(?=Key Skills|Good To Have Skills|$)/i);
-    const goodMatch    = raw.match(/Good To Have Skills[:\s]*([\s\S]*?)(?=Key Skills|Mandatory Skills|$)/i);
+    const goodMatch = raw.match(/Good To Have Skills[:\s]*([\s\S]*?)(?=Key Skills|Mandatory Skills|$)/i);
 
     function extractLines(block) {
       if (!block) return [];
@@ -531,8 +583,8 @@ async function _generateRefinedJD(jd) {
         .filter(l => l.length > 2);
     }
 
-    parsed.key_skills          = extractLines(keyMatch?.[1]);
-    parsed.mandatory_skills    = extractLines(mandatoryMatch?.[1]);
+    parsed.key_skills = extractLines(keyMatch?.[1]);
+    parsed.mandatory_skills = extractLines(mandatoryMatch?.[1]);
     parsed.good_to_have_skills = extractLines(goodMatch?.[1]);
     return parsed;
   } catch (err) {
@@ -545,7 +597,7 @@ async function _generateRefinedJD(jd) {
  * Generate a natural-language panel summary paragraph
  * @private
  */
-async function _generatePanelSummary(evaluation, jd) {
+async function _generatePanelSummary(evaluation, jd, l2_rejection_reasons = [], gapAnalysis = null) {
   try {
     // Derive score category from percentage of MAX_PANEL_SCORE
     const scorePct = evaluation.score / MAX_PANEL_SCORE;
@@ -561,21 +613,70 @@ async function _generatePanelSummary(evaluation, jd) {
       })
       .join('\n');
 
+    const rejectionContext = l2_rejection_reasons.length > 0
+      ? `\nCandidate Rejection Reasons:\n${l2_rejection_reasons.map(r => `- ${r}`).join('\n')}`
+      : '';
+
+    const gapContext = gapAnalysis
+      ? `\nTop Identified Gaps Point:\n${gapAnalysis.split('\n')[0]}`
+      : '';
+
     const userPrompt = `Panel Evaluation Results:
 - Overall Score: ${evaluation.score} / ${MAX_PANEL_SCORE}
 - Score Category: ${scoreCategory}
-- Dimensions (ACCEPTABLE = scored ≥50% of its max; WEAK = scored <50% of its max):
-${catLines}
+- Dimensions:
+${catLines}${rejectionContext}${gapContext}
 
-Job Description (brief):
+Job Description Context:
 ${String(jd || '').substring(0, 400)}
 
-Write a concise 3-5 sentence professional paragraph summarising this panel's interview effectiveness.`;
+Generate a detailed, multi-point bulleted summary covering panel behavior, interview process quality, rejection validation effectiveness, and at least one identification gap.`;
 
     const summary = await _callGroqWithRetry(userPrompt, PANEL_SUMMARY_SYSTEM_PROMPT);
     return summary.trim();
   } catch (err) {
     console.error('_generatePanelSummary error:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Generate a specialized gap analysis summary
+ * @private
+ */
+async function _generateGapAnalysis(evaluation, jd, l2_rejection_reasons) {
+  try {
+    if (!l2_rejection_reasons || l2_rejection_reasons.length === 0) {
+      return null;
+    }
+
+    const catLines = Object.entries(evaluation.categories || {})
+      .map(([dim, score]) => {
+        const max = PANEL_DIMENSIONS[dim]?.max ?? 1;
+        return `  - ${dim}: ${score}/${max}`;
+      })
+      .join('\n');
+
+    const userPrompt = `Analyse the GAPS in the panel member's interview probing.
+    
+Rejection Reasons Provided:
+${l2_rejection_reasons.map(r => `- ${r}`).join('\n')}
+
+Panel Scoring Gaps:
+${catLines}
+
+Job Description Context:
+${String(jd || '').substring(0, 500)}
+
+Evidence of Panel Questioning:
+${JSON.stringify(evaluation.evidence || {}, null, 2)}
+
+Provide a bulleted list analyzing why the panel failed to probe deep enough to catch these rejection reasons earlier, and identifying the specific "probing gaps".`;
+
+    const summary = await _callGroqWithRetry(userPrompt, GAP_ANALYSIS_SYSTEM_PROMPT);
+    return summary.trim();
+  } catch (err) {
+    console.error('_generateGapAnalysis error:', err.message);
     return null;
   }
 }
@@ -603,6 +704,9 @@ async function _storeEvaluationInDB(evaluationData) {
       l1_transcript: evaluationData.l1_transcript || '',
       refined_jd: evaluationData.refined_jd || null,
       panel_summary: evaluationData.panel_summary || null,
+      gap_analysis: evaluationData.gap_analysis || null,
+      panel_member_id: evaluationData.panel_member_id || '',
+      panel_member_email: evaluationData.panel_member_email || '',
       evaluated_at: new Date().toISOString(),
       created_at: new Date()
     };

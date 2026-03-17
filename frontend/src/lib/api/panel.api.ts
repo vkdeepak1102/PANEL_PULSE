@@ -6,12 +6,12 @@ import { sanitizeText } from '@/lib/utils/sanitize';
 const CATEGORY_KEY_MAP: Record<string, keyof PanelEfficiencyScore['dimensions']> = {
   'Mandatory Skill Coverage': 'mandatorySkillCoverage',
   'Technical Depth': 'technicalDepth',
+  'Rejection Validation Alignment': 'rejectionValidationAlignment',
   'Scenario / Risk Evaluation': 'scenarioRiskEvaluation',
   'Framework Knowledge': 'frameworkKnowledge',
   'Hands-on Validation': 'handsOnValidation',
   'Leadership Evaluation': 'leadershipEvaluation',
   'Behavioral Assessment': 'behavioralAssessment',
-  'Interview Structure': 'interviewStructure',
 };
 
 function mapBackendToPanelScore(body: any, request: UploadRequest): PanelEfficiencyScore {
@@ -85,6 +85,8 @@ export const panelApi = {
       jd: data.jd,
       l1_transcripts: Array.isArray(data.l1Transcript) ? data.l1Transcript : [data.l1Transcript],
       l2_rejection_reasons: Array.isArray(data.l2RejectionReason) ? data.l2RejectionReason : [data.l2RejectionReason],
+      panel_member_id: data.panel_member_id,
+      panel_member_email: data.panel_member_email,
     };
 
     try {
@@ -129,8 +131,13 @@ export const panelApi = {
     return response.data;
   },
 
-  async getDimensions() {
-    const response = await apiClient.get('/api/v1/panel/dimensions');
+  async getPanelDirectory() {
+    const response = await apiClient.get('/api/v1/panel/insights/directory');
+    return response.data;
+  },
+
+  async getPanelProfile(panelName: string) {
+    const response = await apiClient.get(`/api/v1/panel/insights/profile/${encodeURIComponent(panelName)}`);
     return response.data;
   },
 };

@@ -161,9 +161,10 @@ export const dashboardApi = {
         'Scenario / Risk Evaluation':  'scenarioRiskEvaluation',
         'Framework Knowledge':         'frameworkKnowledge',
         'Hands-on Validation':         'handsOnValidation',
-        'Leadership Evaluation':       'leadershipEvaluation',
-        'Behavioral Assessment':       'behavioralAssessment',
-        'Interview Structure':         'interviewStructure',
+              'Leadership Evaluation':       'leadershipEvaluation',
+              'Behavioral Assessment':       'behavioralAssessment',
+              'Interview Structure':         'interviewStructure',
+              'Rejection Validation Alignment': 'rejectionValidationAlignment',
       };
 
       const rawCategories = body.categories ?? {};

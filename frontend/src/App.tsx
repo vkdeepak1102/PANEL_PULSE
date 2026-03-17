@@ -5,7 +5,8 @@ import DashboardPage from './pages/DashboardPage';
 import EvaluatePage from './pages/EvaluatePage';
 import ResultsPage from './pages/ResultsPage';
 import ChatPage from './pages/ChatPage';
-
+import PanelInsightsPage from './pages/PanelInsightsPage';
+import PanelProfilePage from './pages/PanelProfilePage';
 function App() {
   return (
     <BrowserRouter>
@@ -26,6 +27,8 @@ function App() {
         <Route path="/results" element={<ResultsPage />} />
         <Route path="/results/:evaluationId" element={<ResultsPage />} />
         <Route path="/chat" element={<ChatPage />} />
+        <Route path="/panels" element={<PanelInsightsPage />} />
+        <Route path="/panels/:panelName" element={<PanelProfilePage />} />
       </Routes>
     </BrowserRouter>
   );

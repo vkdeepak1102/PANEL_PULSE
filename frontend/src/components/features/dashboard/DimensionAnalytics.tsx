@@ -10,7 +10,7 @@ const DIMENSION_COLORS: Record<string, string> = {
   handsOnValidation: '#f87171',
   leadershipEvaluation: '#60a5fa',
   behavioralAssessment: '#a78bfa',
-  interviewStructure: '#94e2d5',
+  rejectionValidationAlignment: '#94e2d5',
 };
 
 const DIMENSION_LABELS: Record<string, string> = {
@@ -21,7 +21,7 @@ const DIMENSION_LABELS: Record<string, string> = {
   handsOnValidation: 'Hands-on',
   leadershipEvaluation: 'Leadership',
   behavioralAssessment: 'Behavioral',
-  interviewStructure: 'Structure',
+  rejectionValidationAlignment: 'Alignment',
 };
 
 interface DimensionAnalyticsProps {

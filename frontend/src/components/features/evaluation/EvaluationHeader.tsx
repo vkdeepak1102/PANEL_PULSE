@@ -1,5 +1,6 @@
 import React from 'react';
 import { ExportButton } from './ExportButton';
+import { EmailButton } from './EmailButton';
 
 interface Props {
   jobId: string;
@@ -38,7 +39,16 @@ export function EvaluationHeader({ jobId, panelName, candidateName, evaluationId
         </div>
       </div>
 
-      <div className="flex-none">
+      <div className="flex-none flex items-center gap-3">
+        <EmailButton
+          jobId={jobId}
+          evaluationId={evaluationId}
+          panelName={panelName}
+          candidateName={candidateName}
+          score={score}
+          categories={categories}
+          evaluationData={evaluationData}
+        />
         <ExportButton
           jobId={jobId}
           evaluationId={evaluationId}

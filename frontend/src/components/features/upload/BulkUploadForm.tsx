@@ -161,20 +161,24 @@ function CsvFormatInfo() {
               ],
             },
             {
-              label: '🎙 L1 Transcript File (4 columns)',
+              label: '🎙 L1 Transcript File (6 columns)',
               accent: 'text-orange-400',
               cols: [
                 { name: 'Job Interview ID', note: 'Must match JD file' },
                 { name: 'Panel Name', note: 'Interviewer / panel' },
+                { name: 'panel_member_id', note: 'Unique panel member ID' },
+                { name: 'panel_member_email', note: 'Panel member email' },
                 { name: 'Candidate Name', note: 'Interviewee name' },
                 { name: 'L1 Transcript', note: 'Full interview transcript' },
               ],
             },
             {
-              label: '🚫 L2 Rejection File (2 columns)',
+              label: '🚫 L2 Rejection File (4 columns)',
               accent: 'text-emerald-400',
               cols: [
                 { name: 'Job Interview ID', note: 'Must match JD file' },
+                { name: 'panel_member_id', note: 'Unique panel member ID' },
+                { name: 'panel_member_email', note: 'Panel member email' },
                 { name: 'L2 Rejected Reason', note: 'Why the candidate was rejected' },
               ],
             },
@@ -202,9 +206,11 @@ function CsvFormatInfo() {
 function EvaluationTable({
   tasks,
   isRunning,
+  onEvaluateSingle,
 }: {
   tasks: EvaluationTask[];
   isRunning: boolean;
+  onEvaluateSingle?: (taskId: string) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -217,6 +223,7 @@ function EvaluationTable({
             <th className="text-left text-xs font-medium text-text-muted py-2 pr-4">Candidate</th>
             <th className="text-left text-xs font-medium text-text-muted py-2 pr-4">Status</th>
             <th className="text-left text-xs font-medium text-text-muted py-2">Score</th>
+            <th className="text-right text-xs font-medium text-text-muted py-2">Action</th>
           </tr>
         </thead>
         <tbody>
@@ -237,6 +244,17 @@ function EvaluationTable({
               <td className="py-2.5">
                 <ScoreChip score={task.score} category={task.scoreCategory} />
               </td>
+              <td className="py-2.5 text-right">
+                {task.status !== 'done' && task.status !== 'processing' && onEvaluateSingle && (
+                  <button
+                    onClick={() => onEvaluateSingle(task.id)}
+                    disabled={isRunning}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Evaluate
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -254,7 +272,7 @@ interface FileEntry {
 
 export function BulkUploadForm() {
   const navigate = useNavigate();
-  const { tasks, isRunning, isComplete, summary, progress, parseFiles, startBatch, reset } =
+  const { tasks, isRunning, isComplete, summary, progress, parseFiles, startBatch, startSingle, reset } =
     useBulkUpload();
 
   const [jd, setJd] = useState<FileEntry | null>(null);
@@ -394,21 +412,32 @@ export function BulkUploadForm() {
         </div>
       )}
 
-      {/* ── Preview + Evaluate Button (before run) ─────────────────────── */}
-      {tasks.length > 0 && !isRunning && !isComplete && (
+      {/* ── Preview + Evaluate Button + Progress ──────────────────────── */}
+      {tasks.length > 0 && !isComplete && (
         <div className="bg-bg-card rounded-xl border border-white/[0.06] p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base font-semibold text-text-primary">
                 {tasks.length} evaluation{tasks.length !== 1 ? 's' : ''} detected
               </h3>
-              <p className="text-xs text-text-muted mt-0.5">
-                Review the list below then click "Evaluate All" to start
-              </p>
+              {isRunning ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <Loader2 className="w-3.5 h-3.5 text-orange-400 animate-spin" />
+                  <span className="text-sm font-medium text-text-primary">Processing…</span>
+                  <span className="text-xs text-text-muted ml-1 pb-[1px]">
+                    ({summary.done + summary.skipped + summary.errors} / {summary.total})
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-text-muted mt-0.5">
+                  Review the list below then click "Evaluate All" to start
+                </p>
+              )}
             </div>
+            
             <button
               onClick={startBatch}
-              disabled={!canRun}
+              disabled={!canRun || isRunning}
               className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium
                 bg-gradient-to-r from-primary to-accent text-white transition-opacity
                 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -417,32 +446,17 @@ export function BulkUploadForm() {
               Evaluate All {tasks.length}
             </button>
           </div>
-          <EvaluationTable tasks={tasks} isRunning={false} />
-        </div>
-      )}
-
-      {/* ── Live Progress (during run) ──────────────────────────────────── */}
-      {isRunning && (
-        <div className="bg-bg-card rounded-xl border border-white/[0.06] p-6 space-y-4">
-          {/* Progress bar */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 text-orange-400 animate-spin" />
-                <span className="text-sm font-medium text-text-primary">Processing…</span>
-              </div>
-              <span className="text-xs text-text-muted">
-                {summary.done + summary.skipped + summary.errors} / {summary.total}
-              </span>
-            </div>
+          
+          {isRunning && (
             <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500 rounded-full"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-          <EvaluationTable tasks={tasks} isRunning={true} />
+               <div
+                 className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500 rounded-full"
+                 style={{ width: `${progress}%` }}
+               />
+             </div>
+          )}
+
+          <EvaluationTable tasks={tasks} isRunning={isRunning} onEvaluateSingle={startSingle} />
         </div>
       )}
 
@@ -484,7 +498,7 @@ export function BulkUploadForm() {
           </div>
 
           {/* Full results table */}
-          <EvaluationTable tasks={tasks} isRunning={false} />
+          <EvaluationTable tasks={tasks} isRunning={false} onEvaluateSingle={startSingle} />
         </div>
       )}
     </div>
