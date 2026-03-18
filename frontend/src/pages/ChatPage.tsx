@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { chatApi } from '@/lib/api/chat.api';
 import type { ChatMessage, ChatHistoryEntry, ChatSource, SearchMode, ChatSearchSettings } from '@/lib/api/chat.api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import { Send, Bot, User, Sparkles, ChevronDown, ChevronUp, Zap, SlidersHorizontal, X } from 'lucide-react';
 
 // ─── Starter questions ───────────────────────────────────────────────────────
@@ -288,13 +291,36 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       {/* Bubble */}
       <div className={`max-w-[78%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
         <div
-          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
             isUser
               ? 'bg-gradient-to-br from-orange-500/25 to-orange-600/15 border border-orange-500/30 text-white rounded-br-sm'
-              : 'bg-slate-800/60 border border-slate-700/50 text-slate-200 rounded-bl-sm'
+              : 'bg-slate-800/60 border border-slate-700/50 text-slate-200 rounded-bl-sm prose prose-invert max-w-none'
           }`}
         >
-          {msg.content}
+          {isUser ? (
+            <div className="whitespace-pre-wrap">{msg.content}</div>
+          ) : (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkBreaks]}
+              components={{
+                p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
+                strong: ({ children }) => <strong className="font-bold text-indigo-300 drop-shadow-sm">{children}</strong>,
+                ul: ({ children }) => <ul className="list-disc ml-5 mb-4 space-y-1">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal ml-5 mb-4 space-y-1">{children}</ol>,
+                li: ({ children }) => <li className="pl-1">{children}</li>,
+                h1: ({ children }) => <h1 className="text-xl font-bold mb-4 mt-2 text-white border-b border-slate-700/50 pb-1">{children}</h1>,
+                h2: ({ children }) => <h2 className="text-lg font-bold mb-3 mt-4 text-white flex items-center gap-2">
+                  <span className="w-1 h-4 bg-indigo-500 rounded-full" />
+                  {children}
+                </h2>,
+                h3: ({ children }) => <h3 className="text-md font-semibold mb-2 mt-3 text-slate-200 uppercase tracking-wider text-[11px]">{children}</h3>,
+                hr: () => <hr className="border-slate-700/60 my-6" />,
+                code: ({ children }) => <code className="bg-slate-900/80 px-1.5 py-0.5 rounded text-indigo-400 font-mono text-xs border border-slate-700/30">{children}</code>
+              }}
+            >
+              {msg.content}
+            </ReactMarkdown>
+          )}
         </div>
 
         {/* Sources (AI only) */}
