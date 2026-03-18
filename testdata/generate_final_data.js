@@ -122,7 +122,67 @@ const cases = [
         scenario: "Suppose your system performance decreases drastically. How would you debug?"
     },
     { 
-        id: 'JD2017', cand: 'Sanjay', role: 'Product Manager', pid: 'P217', pan: 'Nithya', email: 'nithya.n@panel.ai', level: 'moderate',
+        id: 'JD2009', cand: 'Aarav', role: 'DevOps Engineer', pid: 'P209', pan: 'Aditi', email: 'aditi.a@panel.ai', level: 'high',
+        jd: 'Kubernetes orchestration and containerization; Jenkins/GitLab CI/CD proficiency; Infrastructure as Code with Terraform or CloudFormation.',
+        reason: 'Inability to explain Kubernetes CNI or handle pod scheduling constraints.',
+        tech: [
+            {q: "How does a Pod communicate with another Pod across nodes?", a: "I use services and ClusterIP, but I don't know how the overlay network actually works at the VPC level."},
+            {q: "Explain Taints and Tolerations.", a: "They are used for scheduling pods on specific nodes, but I don't know how they differ from Node Affinity in priority evaluation."}
+        ],
+        scenario: "A Kubernetes cluster is experience random Node NotReady status."
+    },
+    { 
+        id: 'JD2010', cand: 'Vivaan', role: 'Python Developer', pid: 'P210', pan: 'Ananya', email: 'ananya.a@panel.ai', level: 'moderate',
+        jd: 'Backend development using Django or Flask; Experience with PostgreSQL and Redis; Strong understanding of asynchronous programming.',
+        reason: 'Confusion between Multiprocessing and Multithreading in Python; basic GIL issues.',
+        tech: [
+            {q: "What is the Global Interpreter Lock (GIL)?", a: "It stops multiple threads from running at once, but I don't know how to bypass it for CPU-bound tasks."},
+            {q: "Asynchronous vs Synchronous calls in Django?", a: "I use standard synchronous calls, I haven't worked with Django Channels or async views."}
+        ],
+        scenario: "A Python API is hanging when handling 100+ concurrent requests."
+    },
+    { 
+        id: 'JD2011', cand: 'Aditya', role: 'Security Engineer', pid: 'P211', pan: 'Kavitha', email: 'kavitha.k@panel.ai', level: 'high',
+        jd: 'Penetration testing and vulnerability assessment; Knowledge of OWASP Top 10; Experience with AWS Security Hub and GuardDuty.',
+        reason: 'Poor understanding of SQL injection mitigations beyond simple escaping; lacks depth in OAuth2 flows.',
+        tech: [
+            {q: "How do you prevent SQL Injection correctly?", a: "I use prepared statements, but I don't know how they handle binary data or complex joins safely."},
+            {q: "Explain OAuth2 Authorization Code flow vs Implicit flow.", a: "Authorization Code is for servers, Implicit is for browsers. I'm not clear on the security risk of Implicit flow."}
+        ],
+        scenario: "An unauthorized entity is attempting to access private S3 buckets."
+    },
+    { 
+        id: 'JD2012', cand: 'Kiran', role: 'Mobile Developer (Flutter)', pid: 'P212', pan: 'Nisha', email: 'nisha.n@panel.ai', level: 'moderate',
+        jd: 'Developing cross-platform apps with Flutter and Dart; State management using Provider or Bloc; Experience with native integrations.',
+        reason: 'Basic Bloc pattern knowledge; unable to optimize widget rebuilds.',
+        tech: [
+            {q: "How do you optimize Widget build performance?", a: "I use const constructors, but I don't know how to profile rebuilds using the DevTools."},
+            {q: "Provider vs Bloc?", a: "I use Provider for small apps and Bloc for large ones. I haven't worked with complex streams."}
+        ],
+        scenario: "A Flutter app is dropping frames during list scrolling."
+    },
+    { 
+        id: 'JD2013', cand: 'Rohit', role: 'QA Lead', pid: 'P213', pan: 'Riya', email: 'riya.r@panel.ai', level: 'high',
+        jd: 'Leading QA teams and defining test strategies; Automated and manual testing expertise; Experience with JIRA and test management tools.',
+        reason: 'Weak strategy for regression testing in a fast-paced CI/CD environment.',
+        tech: [
+            {q: "How do you define a test strategy for a microservices architecture?", a: "I focus on end-to-end testing. I haven't implemented contract testing or consumer-driven tests."},
+            {q: "How do you manage bug prioritization with stakeholders?", a: "I use a simple priority matrix, but I struggle when everything is marked as high priority."}
+        ],
+        scenario: "A critical bug reached production despite 100% test coverage."
+    },
+    { 
+        id: 'JD2014', cand: 'Nikhil', role: 'System Administrator', pid: 'P214', pan: 'Shruthi', email: 'shruthi.s@panel.ai', level: 'low',
+        jd: 'Linux server administration (Ubuntu/CentOS); Shell scripting for automation; Managing network services (DNS, DHCP, SMTP).',
+        reason: 'Inability to troubleshoot DNS lookup failures or manage SSH permissions properly.',
+        tech: [
+            {q: "How do you check for open ports on a remote server?", a: "I use telnet or netstat, but I don't know the specific flags for advanced cases."},
+            {q: "How do you fix a \"Permission Denied (publickey)\" error in SSH?", a: "I check the .ssh folder, but I don't know how to set the correct folder permissions."}
+        ],
+        scenario: "A production server is unresponsive via SSH."
+    },
+    { 
+        id: 'JD2017', cand: 'Sanjay', role: 'Product Manager', pid: 'P217', pan: 'Meera', email: 'meera.m@panel.ai', level: 'moderate',
         jd: 'Product Management lifecycle; Agile methodologies; Stakeholder communication and roadmap planning.', 
         reason: 'Basic understanding of Product lifecycle; lacks depth in data-driven prioritization.',
         tech: [
@@ -134,7 +194,7 @@ const cases = [
         scenario: "Suppose your primary user segment is pivoting; how do you adjust the roadmap?"
     },
     { 
-        id: 'JD2018', cand: 'Deepak', role: 'Full Stack Engineer', pid: 'P218', pan: 'Swathi', email: 'swathi.s@panel.ai', level: 'high',
+        id: 'JD2018', cand: 'Deepak', role: 'Full Stack Engineer', pid: 'P218', pan: 'Revathi', email: 'revathi.r@panel.ai', level: 'high',
         jd: 'Full Stack Development with React, Node.js, and MongoDB; Deep understanding of system design and scalability; Experience with CI/CD and cloud deployments.', 
         reason: 'Exceptional depth shown in React-Node.js integration and distributed systems scaling; answered all in-depth follow-ups with precision.',
         tech: [
@@ -148,18 +208,17 @@ const cases = [
     }
 ];
 
-// --- GENERATION (FILTERED PROGRESSION) ---
-const activeIds = ['JD2001', 'JD2002', 'JD2003', 'JD2004', 'JD2005', 'JD2006', 'JD2007', 'JD2008', 'JD2017', 'JD2018'];
-const filteredCases = cases.filter(c => activeIds.includes(c.id));
+// --- GENERATION (ALL CASES) ---
+const allActiveIds = cases.map(c => c.id);
 
 // JD DATA
 const jdLines = ['Job Interview ID,JD'];
-filteredCases.forEach(c => jdLines.push(`${c.id},${esc(c.jd)}`));
+cases.forEach(c => jdLines.push(`${c.id},${esc(c.jd)}`));
 fs.writeFileSync(jdFile, jdLines.join('\n'));
 
 // L1 DATA
 const l1Lines = ['Job Interview ID,Candidate Name,role,panel_member_id,Panel Name,panel_member_email,JD,L1_decision,L1 Transcript'];
-filteredCases.forEach(c => {
+cases.forEach(c => {
     // START WITH NEUTRALITY
     let t = sNeutrality(c.pan, c.cand) + "\n";
     
@@ -192,12 +251,12 @@ fs.writeFileSync(l1File, l1Lines.join('\n'));
 
 // L2 DATA
 const l2Lines = ['Job Interview ID,candidate_name,role,panel_member_id,panel_member_name,panel_member_email,JD,l2_decision,L2 Rejected Reason'];
-filteredCases.forEach(c => {
+cases.forEach(c => {
     l2Lines.push(`${c.id},${c.cand},${c.role},${c.pid},${c.pan},${c.email},${esc(c.jd)},Reject,${esc(c.reason)}`);
 });
 fs.writeFileSync(l2File, l2Lines.join('\n'));
 
-console.log(`✓ Generated: ${jdFile} (${activeIds.join(', ')})`);
-console.log(`✓ Generated: ${l1File} (${activeIds.join(', ')})`);
-console.log(`✓ Generated: ${l2File} (${activeIds.join(', ')})`);
-console.log(`SUCCESS: Test cases ${activeIds.join(', ')} generated with updated names.`);
+console.log(`✓ Generated: ${jdFile} (${allActiveIds.join(', ')})`);
+console.log(`✓ Generated: ${l1File} (${allActiveIds.join(', ')})`);
+console.log(`✓ Generated: ${l2File} (${allActiveIds.join(', ')})`);
+console.log(`SUCCESS: All 14 test cases (DATA series) generated with specified levels and identities.`);
